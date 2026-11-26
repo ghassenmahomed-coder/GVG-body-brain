@@ -199,3 +199,14 @@ footer button{background:none;border:0;color:var(--muted);text-decoration:underl
 
 .login{min-height:80vh;display:grid;place-items:center}
 .login-card{width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px}
+
+/* Coach */
+.coachbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.coachnote{margin:0;font-size:.85rem;padding:8px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.why{font-size:.76rem;color:var(--muted);margin-top:3px;line-height:1.35}
+.rir{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.rir button{min-width:36px;padding:5px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);font-weight:600;font-size:.85rem}
+.checkin{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.checkin h3{margin:0;font-size:1rem}
+.ci-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.ci-row>span{font-weight:600;font-size:.9rem}

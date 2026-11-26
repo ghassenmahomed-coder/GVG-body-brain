@@ -18,7 +18,7 @@ The home screen for GVG Brain. It shows a clickable body where each part opens a
 - **Tasks:** add, edit, reschedule and complete them. You can type dates in plain words, like "friday 5pm". Every change goes straight to Todoist.
 - **Documents:** when you renew one, set its new expiry date. That updates the Expiry Dates database in Notion.
 - **Photos on items:** add a photo to a task (it's attached as a Todoist comment) or to a document (it goes on the Notion page).
-- **Gym:** the app plans today's workout from the muscles that have recovered. A set only counts once you tick it. If you did a different amount, tap the amount first, change it, then confirm. Each confirmed set becomes a row in the Notion Workout log, and you can undo it.
+- **Gym:** a 10-second check-in (sleep, energy, time, sore muscles) comes first. The coach then plans today's workout from recovery, the sets each muscle still needs this week, and what you lifted last time. After each set, tap how many more reps you could have done, and the next set adapts. Finish with a short review per muscle, which adjusts next week's sets. Your goal (muscle mass, strength or both) can be changed at any time. A set only counts once you tick it. If you did a different amount, tap the amount first, change it, then confirm. Each confirmed set becomes a row in the Notion Workout log, and you can undo it.
 - **Progress photos:** there's a camera with a 10-second timer and a faint overlay of last month's photo, so you stand in the same spot. Photos are compressed to under 1 MB and saved in the private Progress photos database in Notion, together with a summary of your lifts.
 
 ## 3D body
@@ -61,3 +61,4 @@ npm run dev
 - `lib/config.ts`: Notion page and database ids, which Todoist projects map to which body part, and your week schedule.
 - `lib/gym.ts`: the exercise library, recovery thresholds, levels, quests and the photo day (first Sunday of the month).
 - `lib/today.ts`: what makes a body part glow.
+- `lib/coach.ts`: the gym coach. It sets recovery per muscle, weekly set targets through a 6-week block (week 6 is a deload), rep ranges per goal, double progression, and adjusts the next set to how hard the last one felt.

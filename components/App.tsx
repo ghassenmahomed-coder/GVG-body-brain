@@ -2,7 +2,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { WEEK } from "@/lib/config";
 import { WD, fmt, sod } from "@/lib/dates";
-import { muscleStats, weekStart, type GymSet } from "@/lib/gym";
+import { muscleStats, weekStart, type GymSet, type Muscle } from "@/lib/gym";
+import { recovery, type CheckIn } from "@/lib/coach";
+import { isoDay } from "@/lib/dates";
 import { buildItems, type TodayDTO } from "@/lib/today";
 import TodayView from "./TodayView";
 import GymView from "./GymView";
@@ -19,6 +21,7 @@ export default function App() {
   const [view, setView] = useState<"home" | "gym">("home");
   const [today, setToday] = useState<TodayDTO | null>(null);
   const [sets, setSets] = useState<GymSet[]>([]);
+  const [checkins, setCheckins] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [gymLoading, setGymLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
@@ -45,7 +48,11 @@ export default function App() {
     catch (e) { setErrors((x) => [...x, "Workout log: " + (e as Error).message]); }
     setGymLoading(false);
   }, []);
-  useEffect(() => { loadToday(); loadSets(); }, [loadToday, loadSets]);
+  const loadCheckins = useCallback(async () => {
+    try { const r = await api<{ checkins: CheckIn[] }>("/api/gym/checkins"); setCheckins(r.checkins); }
+    catch (e) { setErrors((x) => [...x, "Check-ins: " + (e as Error).message]); }
+  }, []);
+  useEffect(() => { loadToday(); loadSets(); loadCheckins(); }, [loadToday, loadSets, loadCheckins]);
   // Refresh when you come back to the app.
   useEffect(() => {
     const v = () => { if (document.visibilityState === "visible") { loadToday(); } };
@@ -53,7 +60,9 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", v);
   }, [loadToday]);
 
-  const stats = useMemo(() => muscleStats(sets, now.getTime()), [sets, now]);
+  const todayCheck = checkins.find((c) => c.date === isoDay(now)) ?? null;
+  const sore = (todayCheck?.sore ?? []) as Muscle[];
+  const stats = useMemo(() => muscleStats(sets, now.getTime(), recovery(sets, now.getTime(), sore)), [sets, now, sore.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const items = useMemo(() => buildItems(today, sets, gymLoading ? null : stats, now), [today, sets, stats, gymLoading, now]);
   const gymDaysWeek = new Set(sets.filter((s) => s.ts >= weekStart(now).getTime()).map((s) => sod(s.ts).getTime())).size;
   const clearToast = useCallback(() => setToast(null), []);
@@ -87,7 +96,7 @@ export default function App() {
       {view === "home" ? (
         <TodayView items={items} loading={loading} onGym={() => (location.hash = "gym")} reload={loadToday} toast={setToast} gymDaysWeek={gymDaysWeek} />
       ) : (
-        <GymView sets={sets} setSets={setSets} stats={stats} loading={gymLoading} toast={setToast} />
+        <GymView sets={sets} setSets={setSets} stats={stats} loading={gymLoading} toast={setToast} checkins={checkins} setCheckins={setCheckins} todayCheck={todayCheck} />
       )}
 
       <footer>

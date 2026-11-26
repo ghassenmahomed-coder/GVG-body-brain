@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addSet, deleteSet, listSets } from "@/lib/notion";
+import { addSet, deleteSet, listSets, updateSetRir } from "@/lib/notion";
 import { fail } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +30,24 @@ export async function POST(req: Request) {
       plannedReps: typeof b.plannedReps === "number" ? b.plannedReps : undefined,
       pb: !!b.pb,
       at: typeof b.at === "string" ? b.at : new Date().toISOString(),
+      helpers: Array.isArray(b.helpers) ? b.helpers.map(String).filter((m: string) => MUSCLES.has(m) && m !== muscle) : [],
+      blockWeek: Number.isInteger(b.blockWeek) && b.blockWeek >= 1 && b.blockWeek <= 6 ? b.blockWeek : undefined,
+      rir: Number.isInteger(b.rir) && b.rir >= 0 && b.rir <= 4 ? b.rir : null,
     });
     return NextResponse.json({ id });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+// How hard a set felt: reps you still had in the tank (0 to 4, where 4 means 4 or more).
+export async function PATCH(req: Request) {
+  try {
+    const b = await req.json();
+    const rir = Number(b.rir);
+    if (!b.id || !Number.isInteger(rir) || rir < 0 || rir > 4) return fail(new Error("Pick 0 to 4."), 400);
+    await updateSetRir(String(b.id), rir);
+    return NextResponse.json({ ok: true });
   } catch (e) {
     return fail(e);
   }

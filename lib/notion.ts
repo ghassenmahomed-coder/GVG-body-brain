@@ -28,7 +28,9 @@ async function queryAll(dataSourceId: string, args: Record<string, unknown> = {}
   return out;
 }
 
-export type SetRow = { id: string; ts: number; muscle: string; exercise: string; weight: number; reps: number; pb: boolean };
+export type SetRow = { id: string; ts: number; muscle: string; exercise: string; weight: number; reps: number; pb: boolean; rir: number | null; helpers?: string[] };
+const multi = (p: any): string[] => (p?.multi_select ?? []).map((o: any) => o.name);
+const numOrNull = (p: any): number | null => (typeof p?.number === "number" ? p.number : null);
 export type ExpiryRow = { id: string; url: string; document: string; expires: string | null; type: string; person: string; car: string; notes: string };
 
 export async function listSets(sinceDays = 180): Promise<SetRow[]> {
@@ -45,10 +47,12 @@ export async function listSets(sinceDays = 180): Promise<SetRow[]> {
     weight: num(r.properties["Weight kg"]),
     reps: num(r.properties.Reps),
     pb: !!r.properties.PB?.checkbox,
+    rir: numOrNull(r.properties.RIR),
+    ...(multi(r.properties.Hulpspieren).length ? { helpers: multi(r.properties.Hulpspieren) } : {}),
   }));
 }
 
-export async function addSet(s: { muscle: string; exercise: string; weight: number; reps: number; plannedWeight?: number; plannedReps?: number; pb: boolean; at: string }) {
+export async function addSet(s: { muscle: string; exercise: string; weight: number; reps: number; plannedWeight?: number; plannedReps?: number; pb: boolean; at: string; helpers?: string[]; blockWeek?: number; rir?: number | null }) {
   const muscle = s.muscle.charAt(0).toUpperCase() + s.muscle.slice(1);
   const page: any = await notion().pages.create({
     parent: { type: "data_source_id", data_source_id: NOTION.workoutLog },
@@ -61,9 +65,63 @@ export async function addSet(s: { muscle: string; exercise: string; weight: numb
       "Planned weight kg": { number: s.plannedWeight ?? null },
       "Planned reps": { number: s.plannedReps ?? null },
       PB: { checkbox: s.pb },
+      Hulpspieren: { multi_select: (s.helpers ?? []).map((name) => ({ name })) },
+      "Blok-week": { number: s.blockWeek ?? null },
+      RIR: { number: s.rir ?? null },
     },
   } as any);
   return page.id as string;
+}
+
+export async function updateSetRir(id: string, rir: number) {
+  await assertParent(id, NOTION.workoutLog);
+  await notion().pages.update({ page_id: id, properties: { RIR: { number: rir } } } as any);
+}
+
+// Only touch pages that live in the database we expect, so an id from the browser can't edit other pages.
+async function assertParent(pageId: string, dataSourceId: string) {
+  const page: any = await notion().pages.retrieve({ page_id: pageId });
+  const parent = page.parent?.data_source_id ?? page.parent?.database_id ?? "";
+  if (parent.replace(/-/g, "") !== dataSourceId.replace(/-/g, "")) throw new Error("That row isn't in the expected database.");
+}
+
+export type CheckinRow = { id: string; date: string; sleep: number; energy: number; minutes: number; sore: string[]; goal: string; review: string };
+const SLEEP = ["Slecht", "Oké", "Goed"], ENERGY = ["Laag", "Normaal", "Hoog"], GOAL: Record<string, string> = { mass: "Spiermassa", strength: "Kracht", both: "Allebei" };
+
+export async function listCheckins(sinceDays = 60): Promise<CheckinRow[]> {
+  const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10);
+  const rows = await queryAll(NOTION.checkins, { filter: { property: "Date", date: { on_or_after: since } }, sorts: [{ property: "Date", direction: "ascending" }] });
+  return rows.map((r) => ({
+    id: r.id,
+    date: date(r.properties.Date) ?? r.created_time.slice(0, 10),
+    sleep: Math.max(0, SLEEP.indexOf(sel(r.properties.Slaap))),
+    energy: Math.max(0, ENERGY.indexOf(sel(r.properties.Energie))),
+    minutes: num(r.properties["Tijd min"]),
+    sore: multi(r.properties["Pijnlijke spieren"]),
+    goal: Object.keys(GOAL).find((k) => GOAL[k] === sel(r.properties.Doel)) ?? "mass",
+    review: text(r.properties.Terugblik),
+  }));
+}
+
+export async function addCheckin(c: { date: string; sleep: number; energy: number; minutes: number; sore: string[]; goal: string }) {
+  const page: any = await notion().pages.create({
+    parent: { type: "data_source_id", data_source_id: NOTION.checkins },
+    properties: {
+      Name: { title: [{ text: { content: `Check-in ${c.date}` } }] },
+      Date: { date: { start: c.date } },
+      Slaap: { select: { name: SLEEP[c.sleep] ?? "Oké" } },
+      Energie: { select: { name: ENERGY[c.energy] ?? "Normaal" } },
+      "Tijd min": { number: c.minutes },
+      "Pijnlijke spieren": { multi_select: c.sore.map((name) => ({ name })) },
+      Doel: { select: { name: GOAL[c.goal] ?? "Spiermassa" } },
+    },
+  } as any);
+  return page.id as string;
+}
+
+export async function updateCheckinReview(id: string, review: string) {
+  await assertParent(id, NOTION.checkins);
+  await notion().pages.update({ page_id: id, properties: { Terugblik: { rich_text: [{ text: { content: review.slice(0, 1900) } }] } } } as any);
 }
 
 export async function deleteSet(id: string) {
