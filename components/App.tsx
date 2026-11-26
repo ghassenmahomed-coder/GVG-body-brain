@@ -7,6 +7,7 @@ import { buildItems, type TodayDTO } from "@/lib/today";
 import TodayView from "./TodayView";
 import GymView from "./GymView";
 import { Toast, api, type ToastMsg } from "./ui";
+import { sound } from "@/lib/sound";
 
 function afterWork(d: Date) {
   if (WEEK.gymDays.includes(d.getDay())) return "gym";
@@ -23,6 +24,8 @@ export default function App() {
   const [errors, setErrors] = useState<string[]>([]);
   const [toast, setToast] = useState<ToastMsg>(null);
   const [now, setNow] = useState(() => new Date());
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => setSoundOn(sound.enabled()), []);
 
   useEffect(() => {
     const route = () => setView(location.hash === "#gym" ? "gym" : "home");
@@ -90,10 +93,12 @@ export default function App() {
       <footer>
         <span>{today ? `Live from Todoist and Notion · updated ${new Date(today.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Connecting to Todoist and Notion…"}</span>
         <span style={{ display: "flex", gap: 12 }}>
+          <button onClick={() => { const on = !soundOn; sound.set(on); setSoundOn(on); if (on) sound.tap(); }} aria-pressed={soundOn}>{soundOn ? "Sound on" : "Sound off"}</button>
           <button onClick={() => { loadToday(); loadSets(); }}>Refresh</button>
           <button onClick={lock}>Lock</button>
         </span>
       </footer>
+      <p className="credit">3D model: <a href="https://www.z-anatomy.com" target="_blank" rel="noreferrer">Z-Anatomy</a> (CC BY-SA 4.0), based on BodyParts3D by DBCLS (CC BY-SA 2.1 JP)</p>
       <Toast msg={toast} clear={clearToast} />
     </div>
   );

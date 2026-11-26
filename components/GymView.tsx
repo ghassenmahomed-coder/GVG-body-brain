@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { EXERCISES, MUSCLES, MUSCLE_KEYS, bestFor, buildPlan, e1rm, nextTarget, photoDays, quests, recLabel, weekStart, type GymSet, type Muscle, type MuscleStat, type PlannedSet } from "@/lib/gym";
 import { WD, fmt, isoDay, dayDiff } from "@/lib/dates";
-import { GymBody } from "./Body";
+import { GymBody3D } from "./Body3D";
+import { sound } from "@/lib/sound";
 import { Camera } from "./Camera";
 import { Sheet, Stepper, api, json, type ToastMsg } from "./ui";
 
@@ -43,6 +44,7 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
       setSets((s) => [...s, set]);
       const next = (plan || []).some((r) => r.key === row.key) ? (plan || []).map((r) => (r.key === row.key ? { ...r, done: { id, weight, reps, pb } } : r)) : [...(plan || []), { ...row, done: { id, weight, reps, pb } }];
       updatePlan(next);
+      if (pb) sound.record(); else sound.done();
       toast({ text: pb ? `New personal best: ${row.exercise} ${amount(weight, reps)}` : `Logged ${row.exercise} ${amount(weight, reps)}`, kind: pb ? "pb" : undefined, undo: () => undo(row.key, id, next) });
     } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); }
     setBusyKey("");
@@ -53,6 +55,7 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
       await api(`/api/gym/sets?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       setSets((s) => s.filter((x) => x.id !== id));
       updatePlan((current || plan || []).map((r) => (r.key === key ? { ...r, done: undefined } : r)));
+      sound.undo();
       toast({ text: "Set removed" });
     } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); }
     setBusyKey("");
@@ -98,7 +101,7 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
             <button aria-pressed={side === "back"} onClick={() => setSide("back")}>Back</button>
           </div>
         </div>
-        <GymBody side={side} stats={stats} onPick={(m) => setEditing({ muscle: m })} />
+        <GymBody3D side={side} stats={stats} onPick={(m) => setEditing({ muscle: m })} />
         <div className="legend">
           <span><i style={{ background: "var(--r1)" }} />Just trained</span>
           <span><i style={{ background: "var(--r2)" }} />Recovering</span>

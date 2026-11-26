@@ -21,6 +21,12 @@ The home screen for GVG Brain. It shows a clickable body where each part opens a
 - **Gym:** the app plans today's workout from the muscles that have recovered. A set only counts once you tick it. If you did a different amount, tap the amount first, change it, then confirm. Each confirmed set becomes a row in the Notion Workout log, and you can undo it.
 - **Progress photos:** there's a camera with a 10-second timer and a faint overlay of last month's photo, so you stand in the same spot. Photos are compressed to under 1 MB and saved in the private Progress photos database in Notion, together with a summary of your lifts.
 
+## 3D body
+
+The body is a simplified export of the [Z-Anatomy](https://github.com/Z-Anatomy/The-blend) atlas (CC BY-SA 4.0, based on BodyParts3D by DBCLS). `tools/export-body-model.py` rebuilds `public/models/body.glb` from Z-Anatomy's `Startup.blend` with Blender's Python module: it merges the skin regions into one glass skin and the muscles into the 11 gym groups. The model file stays under CC BY-SA 4.0 (see `public/models/CREDITS.txt`). If WebGL or the model fails to load, the app falls back to the flat body.
+
+Sounds are synthesized in the browser (`lib/sound.ts`); the footer has a Sound on/off switch.
+
 ## Privacy
 
 - The whole app sits behind a passcode. Without the login cookie, every page and API route refuses.

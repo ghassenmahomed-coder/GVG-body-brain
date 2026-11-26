@@ -46,6 +46,10 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
 .grid,.gymgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
 @media(min-width:820px){.grid,.gymgrid{grid-template-columns:minmax(0,400px) minmax(0,1fr);align-items:start}}
 .figure{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.body3d{position:relative;width:100%;max-width:340px;aspect-ratio:3/5;touch-action:pan-y;cursor:grab}
+.body3d canvas{display:block;width:100%!important;height:100%!important}
+.body3d-load{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:.85rem}
+.credit{font-size:.68rem;color:var(--muted);text-align:center}
 .figure svg{width:100%;max-width:300px;height:auto;display:block;overflow:visible}
 .sil{fill:var(--body)} .sil-limb{stroke:var(--body);fill:none;stroke-linecap:round}
 .part{cursor:pointer;transition:fill .3s,stroke .3s,opacity .3s}

@@ -1,0 +1,7 @@
+body.glb is a simplified export of the Z-Anatomy atlas (https://github.com/Z-Anatomy/The-blend):
+skin from "Regions of human body", muscles from "Muscular system", merged per muscle group and decimated.
+
+"Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0" (Gauthier Kervyn, Marcin Zielinski, Lluis Vinent)
+"BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+
+This model file is shared under CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/

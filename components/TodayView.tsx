@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { AREAS, AREA_ORDER, type AreaId } from "@/lib/config";
 import { areaSeverity, type Item, type TaskDTO, type ExpiryDTO } from "@/lib/today";
-import { HomeBody } from "./Body";
+import { HomeBody3D } from "./Body3D";
+import { sound } from "@/lib/sound";
 import { Sheet, api, json, type ToastMsg } from "./ui";
 import { PhotoButton } from "./Camera";
 
@@ -36,7 +37,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
   return (
     <section className="grid">
       <div className="figure">
-        <HomeBody sev={sev} onPick={pick} />
+        <HomeBody3D sev={sev} onPick={pick} />
         <div className="chips">
           {AREA_ORDER.map((a) => {
             const n = items.filter((i) => i.area === a && i.sev > 0).length;
@@ -152,6 +153,7 @@ function TaskSheet({ task, onClose, reload, toast }: { task: TaskDTO; onClose: (
     setBusy("done");
     try {
       await api(`/api/tasks/${task.id}`, json("POST", { action: "close" }));
+      sound.done();
       toast({ text: task.due?.recurring ? "Done. Moved to its next date" : "Done in Todoist" }); onClose(); reload();
     } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); setBusy(""); }
   }
