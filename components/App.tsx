@@ -65,6 +65,7 @@ export default function App() {
     <div className="wrap">
       <header className="top">
         <div>
+          <div className="wm brand" aria-label="GVG">GVG</div>
           <div className="eyebrow">{WD[now.getDay()]} {fmt(now)} · Paramaribo</div>
           <h1>Fa waka, Galayn</h1>
         </div>
