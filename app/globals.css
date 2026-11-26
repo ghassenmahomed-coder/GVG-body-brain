@@ -1,21 +1,17 @@
 /* A living anatomy chart: figure beside today's list, a sheet slides up for details. Dark-first, light follows the system. */
+/* GVG "Nacht" theme: colours from Galayn's GVG painting (cobalt, orange shield, ink, leaf green, red dots). Always dark. */
 :root{
-  --bg:#0c1316; --surface:#131e23; --surface2:#1a272d; --line:#243439; --fg:#e4eef0; --muted:#8aa1a8;
-  --body:#22343c; --bodyline:#34505a; --accent:#5cd2c2; --accent-ink:#06211d;
-  --warn:#f2b33d; --hot:#ff6a55; --ok:#5ad38a;
-  --r1:#ff5f4a; --r2:#ff9a3d; --r3:#f0d040; --r4:#4fd28a; --faded:#2b3b42;
+  --bg:#0a1450; --surface:#111d63; --surface2:#18267a; --line:#28399a; --fg:#f1f0ff; --muted:#a9b3e6;
+  --body:#1b2c8a; --bodyline:#3049c0; --accent:#f05a2c; --accent-ink:#121014;
+  --warn:#f6a15a; --hot:#e8322f; --ok:#3fbf63;
+  --r1:#e8322f; --r2:#f05a2c; --r3:#f0c040; --r4:#3fbf63; --faded:#26358a;
+  --cobalt:#1d3fc4; --cobalt-deep:#0d1c6b; --ink:#121014; --leaf:#2f9a4a; --plum:#6d3a5a; --bone:#efe9dc;
   color-scheme:dark;
 }
-@media (prefers-color-scheme: light){:root{
-  --bg:#f2f6f6; --surface:#ffffff; --surface2:#e8eff0; --line:#d5e1e3; --fg:#13232a; --muted:#5a7078;
-  --body:#d3dfe2; --bodyline:#b3c5ca; --accent:#0e8b7d; --accent-ink:#ffffff;
-  --warn:#c98100; --hot:#d6402c; --ok:#1d9a55;
-  --r1:#e0503b; --r2:#ea8a2e; --r3:#d4b21c; --r4:#2fa866; --faded:#c4cfd2;
-  color-scheme:light}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--f-text),system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.45;
+body{min-height:100svh;background:radial-gradient(120% 60% at 50% 0%,#1b37b5,var(--bg) 55%,#070d33) fixed var(--bg);color:var(--fg);font-family:var(--f-text),system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.45;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-top:calc(14px + env(safe-area-inset-top,0px));padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
 .wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
@@ -197,8 +193,42 @@ svg .st-hot{animation:glowH 1.6s ease-in-out infinite}
 footer{font-size:.76rem;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 footer button{background:none;border:0;color:var(--muted);text-decoration:underline;padding:0;font-size:.76rem}
 
-.login{min-height:80vh;display:grid;place-items:center}
-.login-card{width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px}
+/* GVG wordmark: marker letters, orange, ink outline + hard shadow like the painting */
+.wm{font-family:var(--f-marker),"Comic Sans MS",cursive;font-weight:400;color:var(--accent);-webkit-text-stroke:2px var(--ink);paint-order:stroke fill;text-shadow:0 4px 0 var(--ink);letter-spacing:.04em;line-height:1}
+.brand{font-size:2.4rem;margin-bottom:6px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Dragon-eye login */
+.dragon{min-height:calc(100svh - 56px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;display:flex;flex-direction:column;justify-content:space-between;gap:8px;overflow:hidden;color:#fff}
+.dragon-wm{font-size:clamp(42px,13vw,56px);text-align:center;margin-top:4px;transition:opacity .3s}
+.eyewrap{width:112%;margin-left:-6%;transform-origin:50% 52%;transition:transform 1s cubic-bezier(.7,0,.3,1)}
+.eye{width:100%;display:block;overflow:visible}
+.pupil{transition:rx .45s cubic-bezier(.3,1.6,.5,1)}
+.gin{font:400 34px var(--f-marker),cursive;opacity:0;transition:opacity .4s}
+.gin.on{opacity:1}
+.lid{transition:transform .22s}
+.dragon.blink .lid{transform:translateY(46px)}
+.dragon.no .lid{transform:translateY(34px)}
+.dragon.no .eyewrap{animation:shake .5s}
+@keyframes shake{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+.dragon.zoom .eyewrap{transform:scale(14) translateY(4%)}
+.dragon.zoom .dragon-wm,.dragon.zoom .dragon-bottom{opacity:0}
+.dragon-bottom{display:flex;flex-direction:column;gap:10px;transition:opacity .3s;padding-bottom:6px}
+.dragon-hello{font:400 1.35rem var(--f-marker),cursive;text-align:center;letter-spacing:.02em}
+.dragon-sub{margin:2px 0 0;text-align:center;color:var(--muted);font-size:.85rem}
+.dragon-dots{display:flex;gap:10px;justify-content:center;min-height:14px}
+.dragon-dots i{width:13px;height:13px;border-radius:50%;border:2.5px solid #fff;transition:background .15s,transform .15s}
+.dragon-dots i.on{background:#fff;transform:scale(1.15)}
+.dragon-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(100%,300px);margin:0 auto}
+.dragon-pad button{font:700 1.25rem var(--f-text),system-ui;height:min(48px,6.6svh);border-radius:16px;border:2.5px solid #fff;background:rgba(255,255,255,.06);color:#fff;transition:transform .08s,background .15s;-webkit-tap-highlight-color:transparent}
+.dragon-pad button:active{transform:scale(.92);background:rgba(255,255,255,.2)}
+.dragon-pad button.small{font-size:.85rem;border-color:rgba(255,255,255,.35);color:var(--muted)}
+.dragon-go{width:min(100%,300px);margin:0 auto;height:48px;border-radius:18px;border:3px solid var(--ink);background:var(--accent);color:var(--ink);font:700 1.05rem var(--f-text),system-ui;box-shadow:0 4px 0 var(--ink)}
+.dragon-text{display:flex;flex-direction:column;gap:10px;width:min(100%,300px);margin:0 auto}
+.dragon-text input{height:52px;font-size:1.1rem;text-align:center;border-radius:16px;background:rgba(255,255,255,.08);border:2.5px solid #fff;color:#fff}
+.dragon-link{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:.85rem}
+.dragon-err{margin:0;text-align:center;color:#ffb4a8;font-weight:600;font-size:.9rem}
+@media (prefers-reduced-motion: reduce){.eyewrap,.pupil,.lid,.gin{transition:none}.dragon.no .eyewrap{animation:none}}
 
 /* Coach */
 .coachbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
