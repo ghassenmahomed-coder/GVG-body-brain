@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   try {
     s = await makeSession();
   } catch {
-    return NextResponse.json({ error: "Passcode is right, but AUTH_SECRET is missing or shorter than 16 characters in Vercel. Fix it, then redeploy." }, { status: 500 });
+    return NextResponse.json({ error: "Passcode is right, but NOTION_TOKEN and TODOIST_TOKEN are missing in Vercel. Add them, then redeploy." }, { status: 500 });
   }
   const res = NextResponse.json({ ok: true });
   // SameSite=None + Partitioned so the cookie also works inside the Notion embed.

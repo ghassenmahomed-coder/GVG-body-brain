@@ -37,7 +37,7 @@ The home screen for GVG Brain. It shows a clickable body where each part opens a
 3. **Import the repo into Vercel.** Go to https://vercel.com/new, sign in with GitHub, import `GVG-body-brain`, and keep the defaults (Next.js).
 4. **Add the environment variables** before the first deploy. See `.env.example` for the list.
    - `APP_PASSCODE`: the code you'll type to unlock the app.
-   - `AUTH_SECRET`: a long random string. Run `openssl rand -hex 32`, or mash the keyboard for 40+ characters.
+   - `AUTH_SECRET` (optional): a long random string. If you leave it out, the app signs logins with a key built from your tokens and passcode.
    - `TODOIST_TOKEN` and `NOTION_TOKEN`: the tokens from steps 1 and 2.
 5. **Deploy.** Open the URL on your phone and unlock it. On iPhone, choose Share and then *Add to Home Screen*; on Android, choose *Install app*.
 6. **Embed it in Notion.** On a Notion page, type `/embed` and paste the URL. Some phones block logins inside embeds. If the embed keeps showing the passcode screen, use the home-screen app on your phone and keep the embed for your laptop.
