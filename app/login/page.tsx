@@ -11,7 +11,7 @@ export default function Login() {
     const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: code }) }).catch(() => null);
     if (r?.ok) { location.href = "/"; return; }
     const j = await r?.json().catch(() => null);
-    setErr(j?.error || "Could not reach the app. Check your connection.");
+    setErr(j?.error || (r ? `The app hit an error (${r.status}). Check the settings in Vercel.` : "Could not reach the app. Check your connection."));
     setBusy(false);
   }
   return (

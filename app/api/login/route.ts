@@ -16,7 +16,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Wrong passcode." }, { status: 401 });
   }
   tries.delete(ip);
-  const s = await makeSession();
+  let s: { value: string; maxAge: number };
+  try {
+    s = await makeSession();
+  } catch {
+    return NextResponse.json({ error: "Passcode is right, but AUTH_SECRET is missing or shorter than 16 characters in Vercel. Fix it, then redeploy." }, { status: 500 });
+  }
   const res = NextResponse.json({ ok: true });
   // SameSite=None + Partitioned so the cookie also works inside the Notion embed.
   res.cookies.set({ name: COOKIE, value: s.value, maxAge: s.maxAge, httpOnly: true, secure: true, sameSite: "none", path: "/", partitioned: true });
