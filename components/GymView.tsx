@@ -1,21 +1,28 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { EXERCISES, MUSCLES, MUSCLE_KEYS, bestFor, buildPlan, e1rm, nextTarget, photoDays, quests, recLabel, weekStart, type GymSet, type Muscle, type MuscleStat, type PlannedSet } from "@/lib/gym";
+import { EXERCISES, MUSCLES, MUSCLE_KEYS, bestFor, e1rm, nextTarget, photoDays, quests, recLabel, weekStart, type GymSet, type Muscle, type MuscleStat, type PlannedSet } from "@/lib/gym";
 import { WD, fmt, isoDay, dayDiff } from "@/lib/dates";
 import { GymBody3D } from "./Body3D";
 import { sound } from "@/lib/sound";
+import { GOALS, adjustAfterSet, blockWeek, coachPlan, helpersOf, parseReview, reviewText, type CheckIn, type Goal, type Review } from "@/lib/coach";
 import { Camera } from "./Camera";
 import { Sheet, Stepper, api, json, type ToastMsg } from "./ui";
 
 type Photo = { id: string; date: string | null; pose: string; hasPhoto: boolean };
-type Props = { sets: GymSet[]; setSets: React.Dispatch<React.SetStateAction<GymSet[]>>; stats: Record<Muscle, MuscleStat>; loading: boolean; toast: (t: ToastMsg) => void };
+type Props = {
+  sets: GymSet[]; setSets: React.Dispatch<React.SetStateAction<GymSet[]>>; stats: Record<Muscle, MuscleStat>; loading: boolean; toast: (t: ToastMsg) => void;
+  checkins: CheckIn[]; setCheckins: React.Dispatch<React.SetStateAction<CheckIn[]>>; todayCheck: CheckIn | null;
+};
+const GOAL_KEY = "gvg-goal";
+function loadGoal(): Goal { try { const g = localStorage.getItem(GOAL_KEY); return g === "strength" || g === "both" ? g : "mass"; } catch { return "mass"; } }
+const RIR_LABEL = ["0", "1", "2", "3", "4+"];
 
 const PLAN_KEY = "gvg-plan-" + isoDay();
 function loadPlan(): PlannedSet[] | null { try { const s = localStorage.getItem(PLAN_KEY); return s ? JSON.parse(s) : null; } catch { return null; } }
 function savePlan(p: PlannedSet[]) { try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch { /* private mode */ } }
 const amount = (w: number, r: number) => (w ? `${w} kg × ${r}` : `${r} reps`);
 
-export default function GymView({ sets, setSets, stats, loading, toast }: Props) {
+export default function GymView({ sets, setSets, stats, loading, toast, checkins, setCheckins, todayCheck }: Props) {
   const [side, setSide] = useState<"front" | "back">("front");
   const [plan, setPlan] = useState<PlannedSet[] | null>(null);
   const [editing, setEditing] = useState<{ row?: PlannedSet; muscle?: Muscle } | null>(null);
@@ -23,13 +30,24 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [shooting, setShooting] = useState<"Front" | "Side" | "Back" | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [goal, setGoalState] = useState<Goal>("mass");
+  const [skipped, setSkipped] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  useEffect(() => setGoalState(loadGoal()), []);
+  const setGoal = (g: Goal) => { setGoalState(g); try { localStorage.setItem(GOAL_KEY, g); } catch {} };
+
+  const week = blockWeek(sets);
+  const levels = Object.fromEntries(MUSCLE_KEYS.map((m) => [m, stats[m].level])) as Record<Muscle, number>;
+  const reviews: Review[] = checkins.filter((c) => Date.parse(c.date) >= Date.now() - (week - 1) * 7 * 86400000 - 86400000).map((c) => parseReview(c.review));
+  const check: CheckIn | null = todayCheck ? { ...todayCheck, goal } : skipped ? { date: isoDay(), sleep: 1, energy: 1, minutes: 45, sore: [], goal } : null;
+  const coach = useMemo(() => (check ? coachPlan(sets, check, reviews, levels) : null), [check?.date, check?.minutes, check?.sleep, check?.energy, check?.sore.join(), goal, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build today's plan once the lift history has loaded; keep it for the day so ticks survive a reload.
   useEffect(() => {
-    if (loading || plan) return;
-    const p = loadPlan() ?? buildPlan(sets, stats);
+    if (loading || plan || !coach) return;
+    const p = loadPlan() ?? coach.rows;
     setPlan(p); savePlan(p);
-  }, [loading, plan, sets, stats]);
+  }, [loading, plan, coach]);
   const updatePlan = (p: PlannedSet[]) => { setPlan(p); savePlan(p); };
 
   useEffect(() => { api<{ photos: Photo[] }>("/api/gym/photos").then((r) => setPhotos(r.photos)).catch(() => {}); }, []);
@@ -39,8 +57,8 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
     setBusyKey(row.key);
     const pb = bestFor(sets, row.exercise) > 0 && e1rm(weight, reps) > bestFor(sets, row.exercise) + 0.01;
     try {
-      const { id } = await api<{ id: string }>("/api/gym/sets", json("POST", { muscle: row.muscle, exercise: row.exercise, weight, reps, plannedWeight: row.weight, plannedReps: row.reps, pb, at: new Date().toISOString() }));
-      const set: GymSet = { id, ts: Date.now(), muscle: row.muscle, exercise: row.exercise, weight, reps, pb };
+      const { id } = await api<{ id: string }>("/api/gym/sets", json("POST", { muscle: row.muscle, exercise: row.exercise, weight, reps, plannedWeight: row.weight, plannedReps: row.reps, pb, at: new Date().toISOString(), helpers: helpersOf(row.exercise), blockWeek: week }));
+      const set: GymSet = { id, ts: Date.now(), muscle: row.muscle, exercise: row.exercise, weight, reps, pb, rir: null, helpers: helpersOf(row.exercise) };
       setSets((s) => [...s, set]);
       const next = (plan || []).some((r) => r.key === row.key) ? (plan || []).map((r) => (r.key === row.key ? { ...r, done: { id, weight, reps, pb } } : r)) : [...(plan || []), { ...row, done: { id, weight, reps, pb } }];
       updatePlan(next);
@@ -49,6 +67,40 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
     } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); }
     setBusyKey("");
   }
+  // How hard was it? Saved on the set, and the next set of the same exercise adapts.
+  async function rate(row: PlannedSet, rir: number) {
+    if (!row.done?.id) return;
+    const withRir = (plan || []).map((r) => (r.key === row.key && r.done ? { ...r, done: { ...r.done, rir } } : r));
+    const next = adjustAfterSet(withRir, row.key, rir);
+    updatePlan(next);
+    setSets((s) => s.map((x) => (x.id === row.done!.id ? { ...x, rir } : x)));
+    const moved = next.find((r, i) => r.adjusted && !(plan || [])[i]?.adjusted);
+    if (moved) toast({ text: moved.adjusted === "up" ? `That was easy: next ${moved.exercise} set goes up` : `That was a grind: next ${moved.exercise} set goes down` });
+    sound.tap();
+    try { await api("/api/gym/sets", json("PATCH", { id: row.done.id, rir })); } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); }
+  }
+
+  async function startCheckIn(c: Omit<CheckIn, "goal" | "date">) {
+    const full: CheckIn = { ...c, date: isoDay(), goal };
+    try {
+      const { id } = await api<{ id: string }>("/api/gym/checkins", json("POST", full));
+      setCheckins((x) => [...x, { ...full, id }]);
+      try { localStorage.removeItem(PLAN_KEY); } catch {}
+      setPlan(null); sound.done();
+    } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); }
+  }
+
+  async function saveReview(r: Review) {
+    setReviewing(false);
+    if (!todayCheck?.id) { toast({ text: "Do the check-in first so the review has somewhere to go." }); return; }
+    const text = reviewText(r);
+    try {
+      await api("/api/gym/checkins", json("PATCH", { id: todayCheck.id, review: text }));
+      setCheckins((x) => x.map((c) => (c.id === todayCheck.id ? { ...c, review: text } : c)));
+      sound.record(); toast({ text: "Review saved. Next week's sets adjust to it." });
+    } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); }
+  }
+
   async function undo(key: string, id: string, current?: PlannedSet[]) {
     setBusyKey(key);
     try {
@@ -114,14 +166,30 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
       <div className="panel">
         <div className="sec">
           <div className="sec-h"><h2>Today&apos;s workout</h2><span className="note">{plan ? `${doneCount} of ${plan.length} sets confirmed` : ""}</span></div>
-          <p className="note" style={{ margin: 0 }}>Tick ✓ only when you did it. Did more or less? Tap the amount, change it, then confirm. Unticked sets don&apos;t count.</p>
+          <div className="coachbar">
+            <span className="note">Block week {week} of 6{week === 6 ? " · deload" : ""} · Goal</span>
+            <div className="seg" role="group" aria-label="Training goal">
+              {(Object.keys(GOALS) as Goal[]).map((g) => <button key={g} aria-pressed={goal === g} onClick={() => { setGoal(g); try { localStorage.removeItem(PLAN_KEY); } catch {} setPlan(null); }}>{GOALS[g]}</button>)}
+            </div>
+          </div>
+          {!check && !loading && <CheckInCard onStart={startCheckIn} onSkip={() => setSkipped(true)} />}
+          {check && <>
+          {coach?.notes.map((n) => <p key={n} className="coachnote">{n}</p>)}
+          <p className="note" style={{ margin: 0 }}>Tick ✓ only when you did it, then tap how many more reps you could have done. Did more or less? Tap the amount first.</p>
           <div className="plan">
             {(plan || []).map((r) => (
               <div key={r.key} className={"prow" + (r.done ? " done" : "")}>
                 <button className="tick" disabled={busyKey === r.key} aria-label={r.done ? `Undo ${r.exercise}` : `Confirm ${r.exercise} ${amount(r.weight, r.reps)}`} onClick={() => (r.done ? undo(r.key, r.done.id!) : confirm(r, r.weight, r.reps))}>{r.done ? "✓" : ""}</button>
                 <div>
                   <div className="ex">{r.exercise}{r.done?.pb && <span className="pbmark">PB</span>}</div>
-                  <div className="note">{MUSCLES[r.muscle]} · {recLabel(stats[r.muscle]).toLowerCase()}</div>
+                  <div className="note">{MUSCLES[r.muscle]} · {recLabel(stats[r.muscle]).toLowerCase()}{r.rir !== undefined && !r.done ? ` · stop with ${r.rir}${r.rir >= 1 ? "–" + (r.rir + 1) : ""} left` : ""}{r.adjusted && !r.done ? (r.adjusted === "up" ? " · raised" : " · lowered") : ""}</div>
+                  {r.why && !r.done && <div className="why">{r.why}</div>}
+                  {r.done && r.done.rir == null && r.done.id && (
+                    <div className="rir" role="group" aria-label="Reps left in the tank">
+                      <span className="note">Could have done more?</span>
+                      {RIR_LABEL.map((l, i) => <button key={l} onClick={() => rate(r, i)}>{l}</button>)}
+                    </div>
+                  )}
                 </div>
                 <button className="amt" disabled={!!r.done || busyKey === r.key} onClick={() => setEditing({ row: r })} aria-label={`Change amount for ${r.exercise}`}>
                   {r.done ? amount(r.done.weight, r.done.reps) : amount(r.weight, r.reps)}
@@ -132,8 +200,10 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
           </div>
           <div className="actions">
             <button className="btn" onClick={() => setEditing({ muscle: (plan?.[0]?.muscle || "chest") as Muscle })}>+ Add exercise</button>
-            <button className="btn" onClick={() => { const p = buildPlan(sets, stats).filter((n) => !(plan || []).some((o) => o.key === n.key)); updatePlan([...(plan || []).filter((r) => r.done), ...p]); }}>Rebuild plan</button>
+            <button className="btn" onClick={() => { if (!check) return; const p = coachPlan(sets, check, reviews, levels).rows.filter((n) => !(plan || []).some((o) => o.key === n.key && o.done)); updatePlan([...(plan || []).filter((r) => r.done), ...p]); }}>Rebuild plan</button>
+            {doneCount > 0 && <button className="btn primary" onClick={() => setReviewing(true)}>Finish workout</button>}
           </div>
+          </>}
         </div>
 
         <div className="sec">
@@ -205,6 +275,7 @@ export default function GymView({ sets, setSets, stats, loading, toast }: Props)
           onUpdatePlanned={(row) => { updatePlan((plan || []).map((x) => (x.key === row.key ? row : x))); setEditing(null); }}
         />
       )}
+      {reviewing && <ReviewSheet muscles={[...new Set((plan || []).filter((r) => r.done).map((r) => r.muscle))]} onClose={() => setReviewing(false)} onSave={saveReview} />}
       {shooting && (
         <Camera title={`${shooting} photo`} ghostUrl={ghostFor(shooting) ? `/api/gym/photos/${ghostFor(shooting)!.id}` : null} onClose={() => setShooting(null)} onShot={(b) => uploadPhoto(shooting, b)} />
       )}
@@ -251,6 +322,50 @@ function SetSheet({ sets, stats, row, muscle, onClose, onConfirm, onUpdatePlanne
         </div>
         <button className="btn ok big" disabled={r <= 0} onClick={() => onConfirm({ ...target, muscle: m, exercise: ex }, w, r)}>✓ I did {amount(w, r)}</button>
         {row && <button className="btn" onClick={() => onUpdatePlanned({ ...row, weight: w, reps: r })}>Just change the plan</button>}
+      </div>
+    </Sheet>
+  );
+}
+
+function CheckInCard({ onStart, onSkip }: { onStart: (c: Omit<CheckIn, "goal" | "date">) => void; onSkip: () => void }) {
+  const [sleep, setSleep] = useState<0 | 1 | 2>(1);
+  const [energy, setEnergy] = useState<0 | 1 | 2>(1);
+  const [minutes, setMinutes] = useState(45);
+  const [sore, setSore] = useState<Muscle[]>([]);
+  const [busy, setBusy] = useState(false);
+  const three = (v: 0 | 1 | 2, set: (x: 0 | 1 | 2) => void, labels: string[], name: string) => (
+    <div className="seg" role="group" aria-label={name}>{labels.map((l, i) => <button key={l} aria-pressed={v === i} onClick={() => set(i as 0 | 1 | 2)}>{l}</button>)}</div>
+  );
+  return (
+    <div className="checkin">
+      <h3>Quick check-in</h3>
+      <div className="ci-row"><span>Sleep</span>{three(sleep, setSleep, ["Bad", "OK", "Good"], "Sleep")}</div>
+      <div className="ci-row"><span>Energy</span>{three(energy, setEnergy, ["Low", "Normal", "High"], "Energy")}</div>
+      <div className="ci-row"><span>Time</span><div className="seg" role="group" aria-label="Minutes available">{[30, 45, 60, 75].map((m) => <button key={m} aria-pressed={minutes === m} onClick={() => setMinutes(m)}>{m} min</button>)}</div></div>
+      <div className="field"><span className="note">Anything still sore? Tap it and the coach leaves it alone today.</span>
+        <div className="exs">{MUSCLE_KEYS.map((m) => <button key={m} aria-pressed={sore.includes(m)} onClick={() => setSore((x) => (x.includes(m) ? x.filter((y) => y !== m) : [...x, m]))}>{MUSCLES[m]}</button>)}</div>
+      </div>
+      <div className="actions">
+        <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); await onStart({ sleep, energy, minutes, sore }); setBusy(false); }}>Build my workout</button>
+        <button className="btn" onClick={onSkip}>Skip</button>
+      </div>
+    </div>
+  );
+}
+
+function ReviewSheet({ muscles, onClose, onSave }: { muscles: Muscle[]; onClose: () => void; onSave: (r: Review) => void }) {
+  const [r, setR] = useState<Review>(() => Object.fromEntries(muscles.map((m) => [m, 0])) as Review);
+  const opts: [string, -1 | 0 | 1][] = [["Too little", 1], ["Good", 0], ["Too much", -1]];
+  return (
+    <Sheet title="How was it?" eyebrow="Workout review" onClose={onClose}>
+      <div className="form">
+        <p className="note" style={{ margin: 0 }}>Per muscle: was today&apos;s work too little, about right, or too much? Next week&apos;s sets adjust to it.</p>
+        {muscles.map((m) => (
+          <div key={m} className="ci-row"><span>{MUSCLES[m]}</span>
+            <div className="seg" role="group" aria-label={MUSCLES[m]}>{opts.map(([l, v]) => <button key={l} aria-pressed={r[m] === v} onClick={() => setR((x) => ({ ...x, [m]: v }))}>{l}</button>)}</div>
+          </div>
+        ))}
+        <button className="btn ok big" onClick={() => onSave(r)}>Save review</button>
       </div>
     </Sheet>
   );

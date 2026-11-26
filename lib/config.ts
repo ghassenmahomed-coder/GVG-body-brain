@@ -26,6 +26,7 @@ export const PROJECT_AREA: { match: RegExp; area: AreaId }[] = [
 export const NOTION = {
   workoutLog: "42387417-e3fa-81b8-8f39-000bb9c9fedf",
   progressPhotos: "42387417-e3fa-81bf-84fc-000bfe9a30d1",
+  checkins: "42487417-e3fa-813a-be48-000b9e2ee65d",
   expiryDates: "41b87417-e3fa-8189-bce3-000b645fbcd6",
   // Pages whose quietness makes a body part glow.
   watchPages: [

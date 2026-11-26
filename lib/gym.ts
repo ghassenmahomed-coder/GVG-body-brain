@@ -2,7 +2,7 @@
 import { WEEK } from "./config";
 
 export type Muscle = "chest" | "shoulders" | "biceps" | "triceps" | "forearms" | "abs" | "back" | "glutes" | "quads" | "hamstrings" | "calves";
-export type GymSet = { id: string; ts: number; muscle: string; exercise: string; weight: number; reps: number; pb: boolean };
+export type GymSet = { id: string; ts: number; muscle: string; exercise: string; weight: number; reps: number; pb: boolean; rir?: number | null; helpers?: Muscle[] };
 
 export const MUSCLES: Record<Muscle, string> = {
   chest: "Chest", shoulders: "Shoulders", biceps: "Biceps", triceps: "Triceps", forearms: "Forearms", abs: "Abs",
@@ -36,7 +36,8 @@ const DAY = 86400000;
 
 export type MuscleStat = { last: number | null; hours: number; rec: 1 | 2 | 3 | 4; faded: boolean; pbs: number; level: number; sets7: number };
 
-export function muscleStats(sets: GymSet[], now = Date.now()): Record<Muscle, MuscleStat> {
+// recov: recovery % per muscle from the coach (lib/coach.ts). Without it, recovery falls back to hours since last trained.
+export function muscleStats(sets: GymSet[], now = Date.now(), recov?: Record<Muscle, number>): Record<Muscle, MuscleStat> {
   const out = {} as Record<Muscle, MuscleStat>;
   MUSCLE_KEYS.forEach((m) => (out[m] = { last: null, hours: Infinity, rec: 4, faded: false, pbs: 0, level: 1, sets7: 0 }));
   const best: Record<string, number> = {};
@@ -52,7 +53,8 @@ export function muscleStats(sets: GymSet[], now = Date.now()): Record<Muscle, Mu
   MUSCLE_KEYS.forEach((m) => {
     const o = out[m];
     o.hours = o.last ? (now - o.last) / 3600000 : Infinity;
-    o.rec = o.hours < 24 ? 1 : o.hours < 48 ? 2 : o.hours < 72 ? 3 : 4;
+    const r = recov?.[m];
+    o.rec = r !== undefined ? (r < 40 ? 1 : r < 65 ? 2 : r < 80 ? 3 : 4) : o.hours < 24 ? 1 : o.hours < 48 ? 2 : o.hours < 72 ? 3 : 4;
     o.faded = o.last !== null && o.hours >= 240;
     o.level = 1 + Math.floor(o.pbs / 2);
   });
@@ -69,7 +71,7 @@ export function bestFor(sets: GymSet[], exercise: string) {
   return sets.filter((s) => s.exercise === exercise).reduce((b, s) => Math.max(b, e1rm(s.weight, s.reps)), 0);
 }
 
-export type PlannedSet = { key: string; muscle: Muscle; exercise: string; weight: number; reps: number; done?: { id: string | null; weight: number; reps: number; pb: boolean } };
+export type PlannedSet = { key: string; muscle: Muscle; exercise: string; weight: number; reps: number; rir?: number; why?: string; adjusted?: "up" | "down"; done?: { id: string | null; weight: number; reps: number; pb: boolean; rir?: number | null } };
 
 // Today's plan: the readiest muscle group, one main exercise per muscle, 3 sets at last session's top set.
 // If you hit 10+ reps on every set last time, the weight goes up a step.
