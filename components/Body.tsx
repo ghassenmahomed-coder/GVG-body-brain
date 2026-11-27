@@ -48,6 +48,9 @@ export function HomeBody({ sev, onPick }: { sev: Record<AreaId, 0 | 1 | 2>; onPi
         <circle cx={33} cy={258} r={10} className="shape" />
         <circle cx={167} cy={258} r={10} className="shape" />
       </P>
+      <P a="belly" label="Belly">
+        <ellipse cx={100} cy={196} rx={16} ry={13} className="shape" />
+      </P>
       <P a="muscles" label="Muscles">
         <path d="M56,108 L46,170" className="shape-l" strokeWidth={9} />
         <path d="M144,108 L154,170" className="shape-l" strokeWidth={9} />
@@ -58,7 +61,7 @@ export function HomeBody({ sev, onPick }: { sev: Record<AreaId, 0 | 1 | 2>; onPi
         <ellipse cx={78} cy={426} rx={13} ry={7} className="shape" />
         <ellipse cx={122} cy={426} rx={13} ry={7} className="shape" />
       </P>
-      {([["BRAIN", 132, 24, "start"], ["EYES", 132, 56, "start"], ["HEART", 114, 156, "middle"], ["MUSCLES", 40, 96, "end"], ["HANDS", 33, 284, "middle"], ["FEET", 100, 444, "middle"]] as const).map(([t, x, y, a]) => (
+      {([["BRAIN", 132, 24, "start"], ["EYES", 132, 56, "start"], ["HEART", 114, 156, "middle"], ["BELLY", 100, 222, "middle"], ["MUSCLES", 40, 96, "end"], ["HANDS", 33, 284, "middle"], ["FEET", 100, 444, "middle"]] as const).map(([t, x, y, a]) => (
         <text key={t} x={x} y={y} className="svg-label" textAnchor={a}>{t}</text>
       ))}
     </svg>

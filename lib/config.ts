@@ -1,6 +1,6 @@
 // Everything that ties the app to Galayn's own setup lives here.
 
-export type AreaId = "brain" | "eyes" | "hands" | "heart" | "muscles" | "feet";
+export type AreaId = "brain" | "eyes" | "hands" | "heart" | "belly" | "muscles" | "feet";
 
 const N = "https://www.notion.so/";
 
@@ -9,10 +9,11 @@ export const AREAS: Record<AreaId, { name: string; sub: string; link: string; li
   eyes: { name: "Eyes", sub: "What you watch and read", link: N + "41b87417e3fa816ba5f5dccf9a856c8d", linkName: "03 Reference", label: "eyes" },
   hands: { name: "Hands", sub: "Projects and work", link: N + "41b87417e3fa8108b49aee30904d38f5", linkName: "02 Projects", label: "hands" },
   heart: { name: "Heart", sub: "People and follow-ups", link: N + "41b87417e3fa81229546c001ad1e3a52", linkName: "Contacts", label: "heart" },
+  belly: { name: "Belly", sub: "Money: income, buckets, loans", link: N + "41b87417e3fa81089cf0e24dbdd86b60", linkName: "GVG Brain (Money)", label: "money" },
   muscles: { name: "Muscles", sub: "Gym tracking", link: N + "42387417e3fa81d79a61cdbf3d3fadaf", linkName: "Workout log", label: "muscles" },
   feet: { name: "Feet", sub: "Admin: documents and vehicles", link: N + "41b87417e3fa81aebe5ae8e4b9245278", linkName: "Expiry Dates", label: "feet" },
 };
-export const AREA_ORDER: AreaId[] = ["brain", "eyes", "hands", "heart", "muscles", "feet"];
+export const AREA_ORDER: AreaId[] = ["brain", "eyes", "hands", "heart", "belly", "muscles", "feet"];
 
 // A Todoist task lands on a body part by label first (@heart, @feet ...),
 // then by project name, then falls back to Brain (the Inbox).
@@ -20,6 +21,7 @@ export const PROJECT_AREA: { match: RegExp; area: AreaId }[] = [
   { match: /binnenland|brokopondo|documentaire|sprint|suri|tru tori|gvg|halliburton/i, area: "hands" },
   { match: /huishouden|admin|auto|vehicle/i, area: "feet" },
   { match: /gym|workout/i, area: "muscles" },
+  { match: /geld|money|financ|ibkr|budget|lening/i, area: "belly" },
 ];
 
 // Notion data sources (API version 2025-09-03 uses data source ids).

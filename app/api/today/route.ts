@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { todoist } from "@/lib/todoist";
 import { listExpiry, openTodos, pageQuietness } from "@/lib/notion";
+import { googleConfigured, mailFollowUps, moneyChecks } from "@/lib/google";
 import { AREAS, AREA_ORDER, PROJECT_AREA, type AreaId } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const errors: string[] = [];
-  const [tasksR, projectsR, expiryR, pagesR, todosR] = await Promise.allSettled([todoist.tasks(), todoist.projects(), listExpiry(), pageQuietness(), openTodos()]);
+  const google = googleConfigured();
+  const [tasksR, projectsR, expiryR, pagesR, todosR, mailR, moneyR] = await Promise.allSettled([todoist.tasks(), todoist.projects(), listExpiry(), pageQuietness(), openTodos(), google ? mailFollowUps() : Promise.resolve([]), google ? moneyChecks() : Promise.resolve([])]);
   const projects = projectsR.status === "fulfilled" ? projectsR.value : [];
   if (tasksR.status === "rejected") errors.push("Todoist: " + String(tasksR.reason?.message || tasksR.reason));
   if (expiryR.status === "rejected") errors.push("Notion Expiry Dates: " + String(expiryR.reason?.message || expiryR.reason));
   if (pagesR.status === "rejected") errors.push("Notion pages: " + String(pagesR.reason?.message || pagesR.reason));
+  if (mailR.status === "rejected") errors.push("Gmail: " + String(mailR.reason?.message || mailR.reason));
+  if (moneyR.status === "rejected") errors.push("Money sheet: " + String(moneyR.reason?.message || moneyR.reason));
   if (todosR.status === "rejected") errors.push("Notion to-dos: " + String(todosR.reason?.message || todosR.reason));
 
   const projName = new Map(projects.map((p) => [p.id, p.name]));
@@ -43,6 +47,9 @@ export async function GET() {
     expiry: expiryR.status === "fulfilled" ? expiryR.value : [],
     pages: pagesR.status === "fulfilled" ? pagesR.value : [],
     todos: todosR.status === "fulfilled" ? todosR.value.todos : [],
+    mail: mailR.status === "fulfilled" ? mailR.value : [],
+    money: moneyR.status === "fulfilled" ? moneyR.value : [],
+    google,
     todosPartial: todosR.status === "fulfilled" ? todosR.value.partial : false,
     errors,
     fetchedAt: new Date().toISOString(),
