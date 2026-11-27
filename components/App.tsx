@@ -101,7 +101,7 @@ export default function App() {
       )}
 
       <footer>
-        <span>{today ? `Live from Todoist and Notion · updated ${new Date(today.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Connecting to Todoist and Notion…"}</span>
+        <span>{today ? `Live from ${today.google ? "Todoist, Notion, Gmail and Sheets" : "Todoist and Notion"} · updated ${new Date(today.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Connecting to Todoist and Notion…"}</span>
         <span style={{ display: "flex", gap: 12 }}>
           <button onClick={() => { const on = !soundOn; sound.set(on); setSoundOn(on); if (on) sound.tap(); }} aria-pressed={soundOn}>{soundOn ? "Sound on" : "Sound off"}</button>
           {today && today.google === false && <a href="/api/google/connect">Connect Google</a>}

@@ -41,6 +41,12 @@ export const NOTION = {
     "41b87417e3fa815bbd3ceee600aa3089": { name: "05 Me", area: "brain" as AreaId },
     "42187417e3fa81068fb7d894ef93978a": { name: "06 Family", area: "heart" as AreaId },
   } as Record<string, { name: string; area: AreaId | null }>,
+  // Page titles that pick a body part themselves, wherever the page sits (checked on the page and its parents).
+  // null = never show its to-dos (Notion's own sample pages).
+  titleAreas: [
+    { match: /^(money|geld|financ|lening|budget)/i, area: "belly" as AreaId },
+    { match: /^(welcome to notion|getting started|getting started on mobile)$/i, area: null },
+  ] as { match: RegExp; area: AreaId | null }[],
   // Pages whose quietness makes a body part glow.
   watchPages: [
     { id: "41b87417e3fa819aa673ebbd2296883f", name: "Ideas", area: "brain" as AreaId, quietDays: 28 },

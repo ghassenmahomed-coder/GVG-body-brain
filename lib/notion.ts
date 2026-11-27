@@ -291,6 +291,8 @@ export async function openTodos(budgetMs = 7000): Promise<{ todos: TodoRow[]; pa
     let cur: PageInfo | undefined = p;
     for (let i = 0; cur && i < 12; i++) {
       if (watch.has(cur.id)) return watch.get(cur.id)!;
+      const byTitle = NOTION.titleAreas.find((r) => r.match.test(cur!.title.trim()));
+      if (byTitle) return byTitle.area;
       const shelf = NOTION.shelves[cur.id];
       if (shelf) return shelf.area;
       if (cur.id === NOTION.root) return null; // to-dos on the home page itself are the weekly routine

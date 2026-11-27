@@ -36,6 +36,15 @@ async function g<T = any>(url: string): Promise<T> { // eslint-disable-line @typ
 export type MailRow = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string };
 const header = (m: any, n: string): string => m.payload?.headers?.find((h: any) => h.name.toLowerCase() === n)?.value ?? ""; // eslint-disable-line @typescript-eslint/no-explicit-any
 const nameOf = (from: string) => (from.match(/^\s*"?([^"<]+?)"?\s*</)?.[1] || from.replace(/[<>]/g, "")).trim();
+// Mail sent by a system rather than a person: bulk/list headers, auto-replies, alert senders, ticket receipts.
+function isAutomated(m: any, from: string, subject: string): boolean { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const auto = header(m, "auto-submitted").toLowerCase();
+  if (auto && auto !== "no") return true;
+  if (header(m, "list-unsubscribe") || header(m, "x-autoreply")) return true;
+  if (/bulk|list|junk|auto_reply/i.test(header(m, "precedence"))) return true;
+  if (/no-?reply|do-?not-?reply|newsletter|notif(y|ication|ications)?@|alerts?@|security@|mailer-daemon|postmaster@/i.test(from)) return true;
+  return /\[##\d+##\]|automatic reply|auto(matisch)? ?(antwoord|reply)|out of (the )?office|afwezig|bedankt voor uw e-?mail|new (device|login|sign-?in)|has invited you/i.test(subject);
+}
 
 export async function mailFollowUps(): Promise<MailRow[]> {
   const me = ((await g<{ emailAddress: string }>("https://gmail.googleapis.com/gmail/v1/users/me/profile")).emailAddress || "").toLowerCase();
@@ -49,7 +58,7 @@ export async function mailFollowUps(): Promise<MailRow[]> {
   const ids = [...new Set([...inbox, ...sent])];
   const out: MailRow[] = [];
   await Promise.all(ids.map(async (id) => {
-    const t = await g<any>(`${base}/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=To`); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const t = await g<any>(`${base}/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=To&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence&metadataHeaders=X-Autoreply`); // eslint-disable-line @typescript-eslint/no-explicit-any
     const msgs = t.messages ?? [];
     const last = msgs[msgs.length - 1]; if (!last) return;
     const labels: string[] = last.labelIds ?? [];
@@ -58,10 +67,10 @@ export async function mailFollowUps(): Promise<MailRow[]> {
     const fromMe = labels.includes("SENT") || from.toLowerCase().includes(me);
     const at = new Date(Number(last.internalDate)).toISOString();
     const subject = header(msgs[0], "subject") || "(no subject)";
-    // Automated mail (no-reply, newsletters) never waits on you.
-    if (!fromMe && /no-?reply|newsletter|notifications?@|mailer-daemon/i.test(from)) return;
+    // Automated mail (no-reply, newsletters, alerts, auto-replies) never waits on you.
+    if (!fromMe && isAutomated(last, from, subject)) return;
     if (!fromMe && !inbox.includes(id)) return;
-    out.push({ id, subject, at, waiting: fromMe ? "them" : "you", who: nameOf(fromMe ? header(last, "to") : from), url: `https://mail.google.com/mail/u/0/#all/${id}` });
+    out.push({ id, subject, at, waiting: fromMe ? "them" : "you", who: nameOf(fromMe ? header(last, "to") : from), url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(me)}#all/${id}` });
   }));
   return out;
 }

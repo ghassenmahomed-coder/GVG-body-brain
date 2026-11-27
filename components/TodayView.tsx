@@ -27,6 +27,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
   const [open, setOpen] = useState<Item | null>(null);
   const [adding, setAdding] = useState<AreaId | null>(null);
   const sev = areaSeverity(items);
+  const sheetUrl = items.find((i) => i.kind === "money" && i.url)?.url;
 
   const needs = items.filter((i) => i.sev > 0).sort((a, b) => b.sev - a.sev || (a.sortDate ?? Infinity) - (b.sortDate ?? Infinity));
   const now = Date.now();
@@ -83,6 +84,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
           </div>
           <div className="actions" style={{ marginTop: 14 }}>
             <button className="btn primary" onClick={() => { setAdding(area); setArea(null); }}>Add to {AREAS[area].name}</button>
+            {area === "belly" && sheetUrl && <a className="btn" href={sheetUrl} target="_blank" rel="noopener noreferrer">Open money sheet</a>}
             <a className="btn" href={AREAS[area].link} target="_blank" rel="noopener noreferrer">Open {AREAS[area].linkName} in Notion</a>
           </div>
         </Sheet>
