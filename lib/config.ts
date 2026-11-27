@@ -42,6 +42,8 @@ export const WEEK = {
   gymDays: [3, 5, 6, 0],
   motorDays: [1, 2, 4],
   workUntil: "17:00",
+  // Work end time per weekday (0 = Sunday). Saturday is a half day.
+  workDays: { 1: "17:00", 2: "17:00", 3: "17:00", 4: "17:00", 5: "17:00", 6: "12:00" } as Record<number, string>,
 };
 
 export const TIMEZONE = "America/Paramaribo";

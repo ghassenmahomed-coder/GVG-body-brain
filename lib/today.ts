@@ -48,7 +48,7 @@ export function buildItems(data: TodayDTO | null, sets: GymSet[], stats: Record<
   if (stats) {
     const ws = sod(now).getTime();
     if (WEEK.gymDays.includes(now.getDay()) && !sets.some((s) => s.ts >= ws))
-      items.push({ key: "g-day", area: "muscles", title: "Gym day", detail: "Today's plan is ready in the Gym tab", sev: 1, when: "today", source: "Weekschema", kind: "gym" });
+      items.push({ key: "g-day", area: "muscles", title: "Gym day", detail: now.getDay() === 6 ? `After work (from ${WEEK.workDays[6]}). Today's plan is ready in the Gym tab` : "Today's plan is ready in the Gym tab", sev: 1, when: now.getDay() === 6 ? `from ${WEEK.workDays[6]}` : "today", source: "Weekschema", kind: "gym" });
     const faded = MUSCLE_KEYS.filter((m) => stats[m].faded);
     if (faded.length) items.push({ key: "g-fade", area: "muscles", title: "Fading: " + faded.map((m) => MUSCLES[m].toLowerCase()).join(", "), detail: "Not trained in 10+ days", sev: 1, when: "fading", source: "Workout log", kind: "gym" });
   }

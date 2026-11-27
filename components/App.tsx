@@ -12,7 +12,7 @@ import { Toast, api, type ToastMsg } from "./ui";
 import { sound } from "@/lib/sound";
 
 function afterWork(d: Date) {
-  if (WEEK.gymDays.includes(d.getDay())) return "gym";
+  if (WEEK.gymDays.includes(d.getDay())) return d.getDay() === 6 ? `gym from ${WEEK.workDays[6]}` : "gym";
   if (WEEK.motorDays.includes(d.getDay())) return "motorrijles from 17:00";
   return "";
 }
@@ -84,7 +84,7 @@ export default function App() {
         </nav>
       </header>
       <div className="planline">
-        {now.getDay() >= 1 && now.getDay() <= 5 && <span><b>Work</b> until {WEEK.workUntil}</span>}
+        {WEEK.workDays[now.getDay()] && <span><b>Work</b> until {WEEK.workDays[now.getDay()]}</span>}
         {afterWork(now) && <span><b>After work</b> {afterWork(now)}</span>}
         {afterWork(tomorrow) && <span><b>Tomorrow</b> {afterWork(tomorrow)}</span>}
       </div>
