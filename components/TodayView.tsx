@@ -90,10 +90,10 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
       {open?.task && <TaskSheet task={open.task} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {open?.expiry && <ExpirySheet doc={open.expiry} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {open?.todo && <TodoSheet todo={open.todo} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
-      {open?.kind === "page" && (
+      {(open?.kind === "page" || open?.kind === "mail" || open?.kind === "money") && (
         <Sheet title={open.title} eyebrow={AREAS[open.area].name} onClose={() => setOpen(null)}>
           <p className="note">{open.detail}</p>
-          {open.url && <a className="btn primary" href={open.url} target="_blank" rel="noopener noreferrer">Open in Notion</a>}
+          {open.url && <a className="btn primary" href={open.url} target="_blank" rel="noopener noreferrer">Open in {open.source === "Gmail" ? "Gmail" : open.source === "Sheets" ? "the sheet" : "Notion"}</a>}
         </Sheet>
       )}
       {adding && <AddSheet initial={adding} onClose={() => setAdding(null)} reload={reload} toast={toast} />}

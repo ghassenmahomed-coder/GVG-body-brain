@@ -8,11 +8,13 @@ export type TaskDTO = { id: string; content: string; description: string; due: n
 export type ExpiryDTO = { id: string; url: string; document: string; expires: string | null; type: string; person: string; car: string; notes: string };
 export type PageDTO = { id: string; name: string; area: AreaId; quietDays: number; lastEdited: string | null; url: string | null };
 export type TodoDTO = { id: string; text: string; due: string | null; pageId: string; page: string; area: AreaId; url: string; next?: boolean };
-export type TodayDTO = { tasks: TaskDTO[]; expiry: ExpiryDTO[]; pages: PageDTO[]; todos?: TodoDTO[]; todosPartial?: boolean; errors: string[]; fetchedAt: string };
+export type MailDTO = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string };
+export type MoneyDTO = { id: string; title: string; detail: string; due: string | null; kind: "month" | "loan"; url: string };
+export type TodayDTO = { tasks: TaskDTO[]; expiry: ExpiryDTO[]; pages: PageDTO[]; todos?: TodoDTO[]; todosPartial?: boolean; mail?: MailDTO[]; money?: MoneyDTO[]; google?: boolean; errors: string[]; fetchedAt: string };
 
 export type Item = {
   key: string; area: AreaId; title: string; detail: string; sev: 0 | 1 | 2; when: string; sortDate?: number; source: string;
-  kind: "task" | "expiry" | "page" | "gym" | "todo";
+  kind: "task" | "expiry" | "page" | "gym" | "todo" | "mail" | "money";
   task?: TaskDTO; expiry?: ExpiryDTO; todo?: TodoDTO; url?: string;
 };
 
@@ -38,6 +40,26 @@ export function buildItems(data: TodayDTO | null, sets: GymSet[], stats: Record<
       sev = n < 0 ? 2 : 1; when = relDue(d, now); sortDate = d.getTime();
     }
     items.push({ key: "n" + t.id, area: t.area, title: t.text.length > 120 ? t.text.slice(0, 117) + "…" : t.text, detail: t.next ? `${t.page} · next step` : t.page, sev, when, sortDate, source: "Notion", kind: "todo", todo: t, url: t.url });
+  });
+  // Gmail: mail waiting on your reply (Heart), and mail you sent that got no answer yet.
+  data?.mail?.forEach((m) => {
+    const n = Math.max(0, -dayDiff(new Date(m.at), now));
+    if (m.waiting === "you") {
+      const sev: 0 | 1 | 2 = n >= 7 ? 2 : n >= 2 ? 1 : 0;
+      items.push({ key: "m" + m.id, area: "heart", title: `Reply to ${m.who}`, detail: m.subject, sev, when: n === 0 ? "today" : `${n}d waiting`, source: "Gmail", kind: "mail", url: m.url });
+    } else if (n >= 4) {
+      items.push({ key: "m" + m.id, area: "heart", title: `No answer yet from ${m.who}`, detail: m.subject, sev: 1, when: `${n}d ago`, source: "Gmail", kind: "mail", url: m.url });
+    }
+  });
+  // Money sheet: an unfilled month, or a loan repayment that is close or late.
+  data?.money?.forEach((r) => {
+    let sev: 0 | 1 | 2 = 0, when = r.kind === "loan" ? "no date" : "", sortDate: number | undefined;
+    if (r.due) {
+      const d = parseDue(r.due); const n = dayDiff(d, now); sortDate = d.getTime();
+      sev = r.kind === "month" ? (n < -7 ? 2 : 1) : n < 0 ? 2 : n <= 3 ? 1 : 0;
+      when = relDue(d, now);
+    }
+    items.push({ key: "$" + r.id, area: "belly", title: r.title, detail: r.detail, sev, when, sortDate, source: "Sheets", kind: "money", url: r.url || undefined });
   });
   data?.expiry.forEach((e) => {
     let sev: 0 | 1 | 2 = 0, when = "", sortDate: number | undefined;

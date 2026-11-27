@@ -62,3 +62,13 @@ npm run dev
 - `lib/gym.ts`: the exercise library, recovery thresholds, levels, quests and the photo day (first Sunday of the month).
 - `lib/today.ts`: what makes a body part glow.
 - `lib/coach.ts`: the gym coach. It sets recovery per muscle, weekly set targets through a 6-week block (week 6 is a deload), rep ranges per goal, double progression, and adjusts the next set to how hard the last one felt.
+
+## Google (Gmail and the money sheet)
+
+Read-only. Heart shows mail waiting on your reply (2+ days amber, 7+ red) and mail you sent with no answer after 4 days. Belly shows unfilled months in the Maandtracker and loan repayments that are close or late.
+
+1. [Google Cloud console](https://console.cloud.google.com): create a project, then enable **Gmail API** and **Google Sheets API**.
+2. OAuth consent screen: External, add yourself as a test user, then set publishing status to **In production** (in Testing, Google expires the sign-in every 7 days). Signing in will warn that the app is unverified; that's expected for a personal app.
+3. Credentials → Create OAuth client ID → Web application. Authorized redirect URI: `https://gvg-body-brain.vercel.app/api/google/callback`.
+4. In Vercel add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_MONEY_SHEET_ID` (the part of the sheet link between `/d/` and `/edit`), redeploy.
+5. Unlock the app and tap **Connect Google** in the footer. Copy the token it shows into Vercel as `GOOGLE_REFRESH_TOKEN`, redeploy.
