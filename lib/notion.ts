@@ -211,7 +211,7 @@ export async function photoUrl(pageId: string): Promise<string | null> {
    Finds every unchecked to-do block on the normal pages of the workspace (not database rows),
    works out which shelf the page is on, and maps that shelf to a body part.
    Pages are cached by last-edited time, so only changed pages are read again. */
-export type TodoRow = { id: string; text: string; due: string | null; pageId: string; page: string; area: string; url: string };
+export type TodoRow = { id: string; text: string; due: string | null; pageId: string; page: string; area: string; url: string; next?: boolean };
 type PageInfo = { id: string; parent: string | null; title: string; url: string; edited: string };
 const nd = (id: string) => id.replace(/-/g, "");
 const pageCache = new Map<string, { edited: string; todos: Omit<TodoRow, "area">[] }>();
@@ -244,11 +244,31 @@ function richText(rt: any[]): { text: string; due: string | null } {
   return { text: t, due };
 }
 
+const NEXT_STEP = /^(next steps?|volgende stap(pen)?)\b/i;
+const HEADINGS = new Set(["heading_1", "heading_2", "heading_3"]);
+const TEXTY = new Set(["paragraph", "bulleted_list_item", "numbered_list_item", "quote", "callout"]);
+
 async function scanBlocks(blockId: string, page: PageInfo, depth: number, out: Omit<TodoRow, "area">[]) {
   let cursor: string | undefined;
+  // A "Next step" heading on a page: the text under it (until the next heading) is one to-do.
+  let next: { id: string; lines: string[]; due: string | null } | null = null;
+  const flush = () => {
+    if (next && next.lines.length) out.push({ id: next.id, text: next.lines.join(" "), due: next.due, pageId: page.id, page: page.title, url: `${page.url}#${nd(next.id)}`, next: true });
+    next = null;
+  };
   for (let i = 0; i < 5; i++) {
     const res: any = await notion().blocks.children.list({ block_id: blockId, page_size: 100, start_cursor: cursor });
     for (const b of res.results) {
+      if (depth === 0 && HEADINGS.has(b.type)) {
+        flush();
+        const h = richText(b[b.type]?.rich_text).text;
+        if (NEXT_STEP.test(h)) next = { id: b.id, lines: [], due: null };
+      } else if (next && TEXTY.has(b.type)) {
+        const rt = b[b.type]?.rich_text || [];
+        const placeholder = rt.length > 0 && rt.every((r: any) => r.annotations?.italic); // e.g. "One thing. Write it here..."
+        const { text: t, due } = richText(rt);
+        if (t && !placeholder) { next.lines.push(t); next.due ??= due; }
+      }
       if (b.type === "to_do" && !b.to_do?.checked) {
         const { text: t, due } = richText(b.to_do.rich_text);
         if (t) out.push({ id: b.id, text: t, due, pageId: page.id, page: page.title, url: `${page.url}#${nd(b.id)}` });
@@ -258,6 +278,7 @@ async function scanBlocks(blockId: string, page: PageInfo, depth: number, out: O
     if (!res.has_more) break;
     cursor = res.next_cursor;
   }
+  flush();
 }
 
 export async function openTodos(budgetMs = 7000): Promise<{ todos: TodoRow[]; partial: boolean }> {

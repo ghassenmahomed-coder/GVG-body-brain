@@ -7,7 +7,7 @@ import { MUSCLES, MUSCLE_KEYS, type GymSet, type MuscleStat, type Muscle } from 
 export type TaskDTO = { id: string; content: string; description: string; due: null | { date: string; recurring: boolean; string: string }; labels: string[]; area: AreaId; project: string; addedAt: string | null; url: string };
 export type ExpiryDTO = { id: string; url: string; document: string; expires: string | null; type: string; person: string; car: string; notes: string };
 export type PageDTO = { id: string; name: string; area: AreaId; quietDays: number; lastEdited: string | null; url: string | null };
-export type TodoDTO = { id: string; text: string; due: string | null; pageId: string; page: string; area: AreaId; url: string };
+export type TodoDTO = { id: string; text: string; due: string | null; pageId: string; page: string; area: AreaId; url: string; next?: boolean };
 export type TodayDTO = { tasks: TaskDTO[]; expiry: ExpiryDTO[]; pages: PageDTO[]; todos?: TodoDTO[]; todosPartial?: boolean; errors: string[]; fetchedAt: string };
 
 export type Item = {
@@ -32,12 +32,12 @@ export function buildItems(data: TodayDTO | null, sets: GymSet[], stats: Record<
   });
   // Open to-dos from any Notion page: they always count as "to do"; a date in the to-do makes it red when late.
   data?.todos?.forEach((t) => {
-    let sev: 0 | 1 | 2 = 1, when = "to do", sortDate: number | undefined;
+    let sev: 0 | 1 | 2 = 1, when = t.next ? "next step" : "to do", sortDate: number | undefined;
     if (t.due) {
       const d = parseDue(t.due); const n = dayDiff(d, now);
       sev = n < 0 ? 2 : 1; when = relDue(d, now); sortDate = d.getTime();
     }
-    items.push({ key: "n" + t.id, area: t.area, title: t.text, detail: t.page, sev, when, sortDate, source: "Notion", kind: "todo", todo: t, url: t.url });
+    items.push({ key: "n" + t.id, area: t.area, title: t.text.length > 120 ? t.text.slice(0, 117) + "…" : t.text, detail: t.next ? `${t.page} · next step` : t.page, sev, when, sortDate, source: "Notion", kind: "todo", todo: t, url: t.url });
   });
   data?.expiry.forEach((e) => {
     let sev: 0 | 1 | 2 = 0, when = "", sortDate: number | undefined;

@@ -111,10 +111,13 @@ function TodoSheet({ todo, onClose, reload, toast }: { todo: TodoDTO; onClose: (
     } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); setBusy(false); }
   }
   return (
-    <Sheet title={todo.text} eyebrow={`Notion · ${todo.page}`} onClose={onClose}>
-      <p className="note">This is an open to-do on your Notion page "{todo.page}". Tick it here or open the page.</p>
+    <Sheet title={todo.text.length > 120 ? todo.text.slice(0, 117) + "…" : todo.text} eyebrow={`Notion · ${todo.page}`} onClose={onClose}>
+      {todo.next
+        ? <p className="note">This is the Next step on your Notion page "{todo.page}". When it's done, write the new next step there (or clear it) and it updates here.</p>
+        : <p className="note">This is an open to-do on your Notion page "{todo.page}". Tick it here or open the page.</p>}
+      {todo.next && todo.text.length > 120 && <p>{todo.text}</p>}
       <div className="actions">
-        <button className="btn primary" disabled={busy} onClick={done}>{busy ? "Ticking…" : "Done"}</button>
+        {!todo.next && <button className="btn primary" disabled={busy} onClick={done}>{busy ? "Ticking…" : "Done"}</button>}
         <a className="btn" href={todo.url} target="_blank" rel="noopener noreferrer">Open in Notion</a>
       </div>
     </Sheet>
