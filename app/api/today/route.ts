@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { todoist } from "@/lib/todoist";
-import { listExpiry, pageQuietness } from "@/lib/notion";
+import { listExpiry, openTodos, pageQuietness } from "@/lib/notion";
 import { AREAS, AREA_ORDER, PROJECT_AREA, type AreaId } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const errors: string[] = [];
-  const [tasksR, projectsR, expiryR, pagesR] = await Promise.allSettled([todoist.tasks(), todoist.projects(), listExpiry(), pageQuietness()]);
+  const [tasksR, projectsR, expiryR, pagesR, todosR] = await Promise.allSettled([todoist.tasks(), todoist.projects(), listExpiry(), pageQuietness(), openTodos()]);
   const projects = projectsR.status === "fulfilled" ? projectsR.value : [];
   if (tasksR.status === "rejected") errors.push("Todoist: " + String(tasksR.reason?.message || tasksR.reason));
   if (expiryR.status === "rejected") errors.push("Notion Expiry Dates: " + String(expiryR.reason?.message || expiryR.reason));
   if (pagesR.status === "rejected") errors.push("Notion pages: " + String(pagesR.reason?.message || pagesR.reason));
+  if (todosR.status === "rejected") errors.push("Notion to-dos: " + String(todosR.reason?.message || todosR.reason));
 
   const projName = new Map(projects.map((p) => [p.id, p.name]));
   const areaLabels = new Map(AREA_ORDER.map((a) => [AREAS[a].label, a]));
@@ -41,6 +42,8 @@ export async function GET() {
     tasks,
     expiry: expiryR.status === "fulfilled" ? expiryR.value : [],
     pages: pagesR.status === "fulfilled" ? pagesR.value : [],
+    todos: todosR.status === "fulfilled" ? todosR.value.todos : [],
+    todosPartial: todosR.status === "fulfilled" ? todosR.value.partial : false,
     errors,
     fetchedAt: new Date().toISOString(),
   });

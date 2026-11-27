@@ -28,6 +28,17 @@ export const NOTION = {
   progressPhotos: "42387417-e3fa-81bf-84fc-000bfe9a30d1",
   checkins: "42487417-e3fa-813a-be48-000b9e2ee65d",
   expiryDates: "41b87417-e3fa-8189-bce3-000b645fbcd6",
+  // GVG Brain root and its shelves. Open to-dos anywhere under a shelf light up that shelf's body part.
+  root: "41b87417e3fa81089cf0e24dbdd86b60",
+  shelves: {
+    "41b87417e3fa81aa8d42d51fdde710f1": { name: "00 Inbox", area: "brain" as AreaId },
+    "41b87417e3fa81b3bc4fcfaff501eb3c": { name: "01 Admin", area: "feet" as AreaId },
+    "41b87417e3fa8108b49aee30904d38f5": { name: "02 Projects", area: "hands" as AreaId },
+    "41b87417e3fa816ba5f5dccf9a856c8d": { name: "03 Reference", area: "eyes" as AreaId },
+    "41b87417e3fa81a686d9f64a3867e9e0": { name: "04 Archive", area: null },
+    "41b87417e3fa815bbd3ceee600aa3089": { name: "05 Me", area: "brain" as AreaId },
+    "42187417e3fa81068fb7d894ef93978a": { name: "06 Family", area: "heart" as AreaId },
+  } as Record<string, { name: string; area: AreaId | null }>,
   // Pages whose quietness makes a body part glow.
   watchPages: [
     { id: "41b87417e3fa819aa673ebbd2296883f", name: "Ideas", area: "brain" as AreaId, quietDays: 28 },
