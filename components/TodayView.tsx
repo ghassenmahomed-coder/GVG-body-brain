@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { AREAS, AREA_ORDER, type AreaId } from "@/lib/config";
-import { areaSeverity, type Item, type TaskDTO, type ExpiryDTO } from "@/lib/today";
+import { areaSeverity, type Item, type TaskDTO, type ExpiryDTO, type TodoDTO } from "@/lib/today";
 import { HomeBody3D } from "./Body3D";
 import { sound } from "@/lib/sound";
 import { Sheet, api, json, type ToastMsg } from "./ui";
@@ -30,7 +30,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
 
   const needs = items.filter((i) => i.sev > 0).sort((a, b) => b.sev - a.sev || (a.sortDate ?? Infinity) - (b.sortDate ?? Infinity));
   const now = Date.now();
-  const upcoming = items.filter((i) => i.kind === "task" && i.sev === 0 && i.sortDate && i.sortDate - now < 8 * 86400000).sort((a, b) => a.sortDate! - b.sortDate!);
+  const upcoming = items.filter((i) => (i.kind === "task" || i.kind === "todo") && i.sev === 0 && i.sortDate && i.sortDate - now < 8 * 86400000).sort((a, b) => a.sortDate! - b.sortDate!);
   const openItem = (it: Item) => (it.kind === "gym" ? onGym() : setOpen(it));
   const pick = (a: AreaId) => (a === "muscles" ? onGym() : setArea(a));
 
@@ -89,6 +89,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
       )}
       {open?.task && <TaskSheet task={open.task} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {open?.expiry && <ExpirySheet doc={open.expiry} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
+      {open?.todo && <TodoSheet todo={open.todo} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {open?.kind === "page" && (
         <Sheet title={open.title} eyebrow={AREAS[open.area].name} onClose={() => setOpen(null)}>
           <p className="note">{open.detail}</p>
@@ -97,6 +98,29 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
       )}
       {adding && <AddSheet initial={adding} onClose={() => setAdding(null)} reload={reload} toast={toast} />}
     </section>
+  );
+}
+
+function TodoSheet({ todo, onClose, reload, toast }: { todo: TodoDTO; onClose: () => void; reload: () => Promise<void>; toast: (t: ToastMsg) => void }) {
+  const [busy, setBusy] = useState(false);
+  async function done() {
+    setBusy(true);
+    try {
+      await api(`/api/todos/${todo.id}`, json("POST", {}));
+      sound.done(); toast({ text: "Ticked off in Notion" }); onClose(); await reload();
+    } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); setBusy(false); }
+  }
+  return (
+    <Sheet title={todo.text.length > 120 ? todo.text.slice(0, 117) + "…" : todo.text} eyebrow={`Notion · ${todo.page}`} onClose={onClose}>
+      {todo.next
+        ? <p className="note">This is the Next step on your Notion page "{todo.page}". When it's done, write the new next step there (or clear it) and it updates here.</p>
+        : <p className="note">This is an open to-do on your Notion page "{todo.page}". Tick it here or open the page.</p>}
+      {todo.next && todo.text.length > 120 && <p>{todo.text}</p>}
+      <div className="actions">
+        {!todo.next && <button className="btn primary" disabled={busy} onClick={done}>{busy ? "Ticking…" : "Done"}</button>}
+        <a className="btn" href={todo.url} target="_blank" rel="noopener noreferrer">Open in Notion</a>
+      </div>
+    </Sheet>
   );
 }
 

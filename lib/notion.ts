@@ -206,3 +206,117 @@ export async function photoUrl(pageId: string): Promise<string | null> {
   const f = page.properties?.Photo?.files?.[0];
   return f?.file?.url ?? null;
 }
+
+/* ---------- Open to-dos anywhere in GVG Brain ----------
+   Finds every unchecked to-do block on the normal pages of the workspace (not database rows),
+   works out which shelf the page is on, and maps that shelf to a body part.
+   Pages are cached by last-edited time, so only changed pages are read again. */
+export type TodoRow = { id: string; text: string; due: string | null; pageId: string; page: string; area: string; url: string; next?: boolean };
+type PageInfo = { id: string; parent: string | null; title: string; url: string; edited: string };
+const nd = (id: string) => id.replace(/-/g, "");
+const pageCache = new Map<string, { edited: string; todos: Omit<TodoRow, "area">[] }>();
+const CONTAINERS = new Set(["toggle", "column_list", "column", "callout", "bulleted_list_item", "numbered_list_item", "to_do", "quote", "synced_block", "heading_1", "heading_2", "heading_3"]);
+
+async function listPages(): Promise<PageInfo[]> {
+  const out: PageInfo[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < 6; i++) {
+    const res: any = await notion().search({ filter: { property: "object", value: "page" }, page_size: 100, start_cursor: cursor } as any);
+    for (const p of res.results) {
+      if (p.object !== "page" || p.archived || p.in_trash) continue;
+      const pt = p.parent?.type;
+      if (pt !== "page_id" && pt !== "workspace") continue; // database rows (workout log etc.) are not to-do lists
+      const titleProp: any = Object.values(p.properties || {}).find((x: any) => x?.type === "title");
+      out.push({ id: nd(p.id), parent: pt === "page_id" ? nd(p.parent.page_id) : null, title: text(titleProp) || "Untitled", url: p.url, edited: p.last_edited_time });
+    }
+    if (!res.has_more) break;
+    cursor = res.next_cursor;
+  }
+  return out;
+}
+
+function richText(rt: any[]): { text: string; due: string | null } {
+  let due: string | null = null;
+  const t = (rt || []).map((r: any) => {
+    if (r.type === "mention" && r.mention?.type === "date") { due ??= r.mention.date?.start ?? null; return ""; }
+    return r.plain_text;
+  }).join("").replace(/\s+/g, " ").trim();
+  return { text: t, due };
+}
+
+const NEXT_STEP = /^(next steps?|volgende stap(pen)?)\b/i;
+const HEADINGS = new Set(["heading_1", "heading_2", "heading_3"]);
+const TEXTY = new Set(["paragraph", "bulleted_list_item", "numbered_list_item", "quote", "callout"]);
+
+async function scanBlocks(blockId: string, page: PageInfo, depth: number, out: Omit<TodoRow, "area">[]) {
+  let cursor: string | undefined;
+  // A "Next step" heading on a page: the text under it (until the next heading) is one to-do.
+  let next: { id: string; lines: string[]; due: string | null } | null = null;
+  const flush = () => {
+    if (next && next.lines.length) out.push({ id: next.id, text: next.lines.join(" "), due: next.due, pageId: page.id, page: page.title, url: `${page.url}#${nd(next.id)}`, next: true });
+    next = null;
+  };
+  for (let i = 0; i < 5; i++) {
+    const res: any = await notion().blocks.children.list({ block_id: blockId, page_size: 100, start_cursor: cursor });
+    for (const b of res.results) {
+      if (depth === 0 && HEADINGS.has(b.type)) {
+        flush();
+        const h = richText(b[b.type]?.rich_text).text;
+        if (NEXT_STEP.test(h)) next = { id: b.id, lines: [], due: null };
+      } else if (next && TEXTY.has(b.type)) {
+        const rt = b[b.type]?.rich_text || [];
+        const placeholder = rt.length > 0 && rt.every((r: any) => r.annotations?.italic); // e.g. "One thing. Write it here..."
+        const { text: t, due } = richText(rt);
+        if (t && !placeholder) { next.lines.push(t); next.due ??= due; }
+      }
+      if (b.type === "to_do" && !b.to_do?.checked) {
+        const { text: t, due } = richText(b.to_do.rich_text);
+        if (t) out.push({ id: b.id, text: t, due, pageId: page.id, page: page.title, url: `${page.url}#${nd(b.id)}` });
+      }
+      if (b.has_children && depth < 3 && CONTAINERS.has(b.type)) await scanBlocks(b.id, page, depth + 1, out);
+    }
+    if (!res.has_more) break;
+    cursor = res.next_cursor;
+  }
+  flush();
+}
+
+export async function openTodos(budgetMs = 7000): Promise<{ todos: TodoRow[]; partial: boolean }> {
+  const t0 = Date.now();
+  const pages = await listPages();
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const watch = new Map(NOTION.watchPages.map((w) => [w.id, w.area]));
+  // Walk up to the shelf (or a watched page like Contacts) to pick the body part.
+  const areaOf = (p: PageInfo): string | null => {
+    let cur: PageInfo | undefined = p;
+    for (let i = 0; cur && i < 12; i++) {
+      if (watch.has(cur.id)) return watch.get(cur.id)!;
+      const shelf = NOTION.shelves[cur.id];
+      if (shelf) return shelf.area;
+      if (cur.id === NOTION.root) return null; // to-dos on the home page itself are the weekly routine
+      cur = cur.parent ? byId.get(cur.parent) : undefined;
+    }
+    return "brain";
+  };
+  const targets = pages.map((p) => ({ p, area: areaOf(p) })).filter((x): x is { p: PageInfo; area: string } => x.area !== null);
+  let partial = false;
+  const queue = targets.filter(({ p }) => pageCache.get(p.id)?.edited !== p.edited);
+  const worker = async () => {
+    for (let job = queue.shift(); job; job = queue.shift()) {
+      if (Date.now() - t0 > budgetMs) { partial = true; return; }
+      const found: Omit<TodoRow, "area">[] = [];
+      try { await scanBlocks(job.p.id, job.p, 0, found); pageCache.set(job.p.id, { edited: job.p.edited, todos: found }); }
+      catch { /* page not shared or gone: skip it */ }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  const todos = targets.flatMap(({ p, area }) => (pageCache.get(p.id)?.todos ?? []).map((t) => ({ ...t, area })));
+  return { todos, partial };
+}
+
+// Tick a to-do in Notion. Only to-do blocks can be changed this way.
+export async function checkTodo(blockId: string) {
+  const b: any = await notion().blocks.retrieve({ block_id: blockId });
+  if (b.type !== "to_do") throw new Error("That item is not a Notion to-do.");
+  await notion().blocks.update({ block_id: blockId, to_do: { checked: true } } as any);
+}
