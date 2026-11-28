@@ -72,3 +72,4 @@ Read-only. Heart shows mail waiting on your reply (2+ days amber, 7+ red) and ma
 3. Credentials → Create OAuth client ID → Web application. Authorized redirect URI: `https://gvg-body-brain.vercel.app/api/google/callback`.
 4. In Vercel add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_MONEY_SHEET_ID` (the part of the sheet link between `/d/` and `/edit`), redeploy.
 5. Unlock the app and tap **Connect Google** in the footer. Copy the token it shows into Vercel as `GOOGLE_REFRESH_TOKEN`, redeploy.
+6. Optional: tap **Add second Google account**, sign in with the other account and save its token as `GOOGLE_REFRESH_TOKEN_2`. Heart then shows mail from both inboxes.

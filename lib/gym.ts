@@ -123,7 +123,8 @@ export function quests(sets: GymSet[], now = new Date()) {
   return [
     { t: "Show up 4 days", v: days, goal: WEEK.gymDays.length, d: "Wed, Fri, Sat, Sun on your schedule" },
     { t: "Legs twice", v: legDays, goal: 2, d: "Quads, hamstrings, glutes or calves" },
-    { t: "Wake a faded muscle", v: Math.min(woke, 1), goal: 1, d: fadedAtStart.length ? fadedAtStart.map((m) => MUSCLES[m]).join(", ") : "Nothing faded this week" },
+    // Nothing faded means there is nothing to wake: count the quest as done.
+    { t: "Wake a faded muscle", v: fadedAtStart.length ? Math.min(woke, 1) : 1, goal: 1, d: fadedAtStart.length ? fadedAtStart.map((m) => MUSCLES[m]).join(", ") : "Nothing faded this week" },
     { t: "Beat one personal best", v: Math.min(pbWeek, 1), goal: 1, d: "Any lift, any muscle" },
   ];
 }

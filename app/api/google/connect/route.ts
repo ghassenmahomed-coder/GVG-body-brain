@@ -7,6 +7,6 @@ export async function GET(req: Request) {
   if (!id) return NextResponse.json({ error: "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel first." }, { status: 400 });
   const redirect = new URL("/api/google/callback", req.url).toString();
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  u.search = new URLSearchParams({ client_id: id, redirect_uri: redirect, response_type: "code", scope: GOOGLE_SCOPES.join(" "), access_type: "offline", prompt: "consent" }).toString();
+  u.search = new URLSearchParams({ client_id: id, redirect_uri: redirect, response_type: "code", scope: GOOGLE_SCOPES.join(" "), access_type: "offline", prompt: "consent select_account" }).toString();
   return NextResponse.redirect(u);
 }
