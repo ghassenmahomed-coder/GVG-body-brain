@@ -9,31 +9,35 @@ export const moneySheetUrl = () => (moneySheetId() ? `https://docs.google.com/sp
 
 export const googleConfigured = () => !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
 
-let cached: { token: string; until: number } | null = null;
-async function accessToken() {
-  if (cached && cached.until > Date.now() + 60_000) return cached.token;
+// One or two Google accounts: GOOGLE_REFRESH_TOKEN (the one with the money sheet) and optional GOOGLE_REFRESH_TOKEN_2.
+export const refreshTokens = () => [process.env.GOOGLE_REFRESH_TOKEN, process.env.GOOGLE_REFRESH_TOKEN_2].map((t) => (t || "").trim()).filter(Boolean);
+
+const cached = new Map<string, { token: string; until: number }>();
+async function accessToken(rt: string) {
+  const c = cached.get(rt);
+  if (c && c.until > Date.now() + 60_000) return c.token;
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!, client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN!, grant_type: "refresh_token",
+      refresh_token: rt, grant_type: "refresh_token",
     }),
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`Google sign-in expired or wrong (${j.error || r.status}). Connect Google again.`);
-  cached = { token: j.access_token, until: Date.now() + (j.expires_in ?? 3600) * 1000 };
-  return cached.token;
+  cached.set(rt, { token: j.access_token, until: Date.now() + (j.expires_in ?? 3600) * 1000 });
+  return j.access_token as string;
 }
 
-async function g<T = any>(url: string): Promise<T> { // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` }, cache: "no-store" });
+async function g<T = any>(url: string, rt = refreshTokens()[0]): Promise<T> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken(rt)}` }, cache: "no-store" });
   if (!r.ok) throw new Error(`Google ${r.status}: ${(await r.text()).slice(0, 160)}`);
   return r.json();
 }
 
 /* ---------- Gmail: who is waiting on you, and who you are waiting on ---------- */
-export type MailRow = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string };
+export type MailRow = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string; account: string };
 const header = (m: any, n: string): string => m.payload?.headers?.find((h: any) => h.name.toLowerCase() === n)?.value ?? ""; // eslint-disable-line @typescript-eslint/no-explicit-any
 const nameOf = (from: string) => (from.match(/^\s*"?([^"<]+?)"?\s*</)?.[1] || from.replace(/[<>]/g, "")).trim();
 // Mail sent by a system rather than a person: bulk/list headers, auto-replies, alert senders, ticket receipts.
@@ -46,11 +50,21 @@ function isAutomated(m: any, from: string, subject: string): boolean { // eslint
   return /\[##\d+##\]|automatic reply|auto(matisch)? ?(antwoord|reply)|out of (the )?office|afwezig|bedankt voor uw e-?mail|new (device|login|sign-?in)|has invited you/i.test(subject);
 }
 
-export async function mailFollowUps(): Promise<MailRow[]> {
-  const me = ((await g<{ emailAddress: string }>("https://gmail.googleapis.com/gmail/v1/users/me/profile")).emailAddress || "").toLowerCase();
+// Mail from every connected account. One account failing does not hide the others.
+export async function mailFollowUps(): Promise<{ rows: MailRow[]; errors: string[] }> {
+  const res = await Promise.allSettled(refreshTokens().map((rt) => mailFor(rt)));
+  return {
+    rows: res.flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
+    errors: res.flatMap((r, i) => (r.status === "rejected" ? [`Gmail account ${i + 1}: ${String((r.reason as Error)?.message || r.reason)}`] : [])),
+  };
+}
+
+async function mailFor(rt: string): Promise<MailRow[]> {
+  const g2 = <T = any>(url: string) => g<T>(url, rt); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const me = ((await g2<{ emailAddress: string }>("https://gmail.googleapis.com/gmail/v1/users/me/profile")).emailAddress || "").toLowerCase();
   const base = "https://gmail.googleapis.com/gmail/v1/users/me";
   const list = async (q: string, max: number) =>
-    ((await g<{ threads?: { id: string }[] }>(`${base}/threads?maxResults=${max}&q=${encodeURIComponent(q)}`)).threads ?? []).map((t) => t.id);
+    ((await g2<{ threads?: { id: string }[] }>(`${base}/threads?maxResults=${max}&q=${encodeURIComponent(q)}`)).threads ?? []).map((t) => t.id);
   const [inbox, sent] = await Promise.all([
     list("in:inbox category:primary newer_than:30d -from:me", 25),
     list("in:sent newer_than:30d", 25),
@@ -58,7 +72,7 @@ export async function mailFollowUps(): Promise<MailRow[]> {
   const ids = [...new Set([...inbox, ...sent])];
   const out: MailRow[] = [];
   await Promise.all(ids.map(async (id) => {
-    const t = await g<any>(`${base}/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=To&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence&metadataHeaders=X-Autoreply`); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const t = await g2<any>(`${base}/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=To&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence&metadataHeaders=X-Autoreply`); // eslint-disable-line @typescript-eslint/no-explicit-any
     const msgs = t.messages ?? [];
     const last = msgs[msgs.length - 1]; if (!last) return;
     const labels: string[] = last.labelIds ?? [];
@@ -70,7 +84,7 @@ export async function mailFollowUps(): Promise<MailRow[]> {
     // Automated mail (no-reply, newsletters, alerts, auto-replies) never waits on you.
     if (!fromMe && isAutomated(last, from, subject)) return;
     if (!fromMe && !inbox.includes(id)) return;
-    out.push({ id, subject, at, waiting: fromMe ? "them" : "you", who: nameOf(fromMe ? header(last, "to") : from), url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(me)}#all/${id}` });
+    out.push({ id, subject, at, waiting: fromMe ? "them" : "you", who: nameOf(fromMe ? header(last, "to") : from), url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(me)}#all/${id}`, account: me });
   }));
   return out;
 }

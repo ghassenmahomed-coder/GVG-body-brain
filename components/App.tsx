@@ -105,6 +105,7 @@ export default function App() {
         <span style={{ display: "flex", gap: 12 }}>
           <button onClick={() => { const on = !soundOn; sound.set(on); setSoundOn(on); if (on) sound.tap(); }} aria-pressed={soundOn}>{soundOn ? "Sound on" : "Sound off"}</button>
           {today && today.google === false && <a href="/api/google/connect">Connect Google</a>}
+          {today && today.google && (today.googleAccounts ?? 1) < 2 && <a href="/api/google/connect">Add second Google account</a>}
           <button onClick={() => { loadToday(); loadSets(); }}>Refresh</button>
           <button onClick={lock}>Lock</button>
         </span>

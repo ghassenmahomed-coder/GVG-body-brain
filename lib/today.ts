@@ -8,9 +8,9 @@ export type TaskDTO = { id: string; content: string; description: string; due: n
 export type ExpiryDTO = { id: string; url: string; document: string; expires: string | null; type: string; person: string; car: string; notes: string };
 export type PageDTO = { id: string; name: string; area: AreaId; quietDays: number; lastEdited: string | null; url: string | null };
 export type TodoDTO = { id: string; text: string; due: string | null; pageId: string; page: string; area: AreaId; url: string; next?: boolean };
-export type MailDTO = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string };
+export type MailDTO = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string; account?: string };
 export type MoneyDTO = { id: string; title: string; detail: string; due: string | null; kind: "month" | "loan"; url: string };
-export type TodayDTO = { tasks: TaskDTO[]; expiry: ExpiryDTO[]; pages: PageDTO[]; todos?: TodoDTO[]; todosPartial?: boolean; mail?: MailDTO[]; money?: MoneyDTO[]; google?: boolean; errors: string[]; fetchedAt: string };
+export type TodayDTO = { tasks: TaskDTO[]; expiry: ExpiryDTO[]; pages: PageDTO[]; todos?: TodoDTO[]; todosPartial?: boolean; mail?: MailDTO[]; money?: MoneyDTO[]; google?: boolean; googleAccounts?: number; errors: string[]; fetchedAt: string };
 
 export type Item = {
   key: string; area: AreaId; title: string; detail: string; sev: 0 | 1 | 2; when: string; sortDate?: number; source: string;
@@ -42,8 +42,11 @@ export function buildItems(data: TodayDTO | null, sets: GymSet[], stats: Record<
     items.push({ key: "n" + t.id, area: t.area, title: t.text.length > 120 ? t.text.slice(0, 117) + "…" : t.text, detail: t.next ? `${t.page} · next step` : t.page, sev, when, sortDate, source: "Notion", kind: "todo", todo: t, url: t.url });
   });
   // Gmail: mail waiting on your reply (Heart), and mail you sent that got no answer yet.
+  // With two accounts connected, say which inbox it is in.
+  const accounts = new Set((data?.mail ?? []).map((m) => m.account).filter(Boolean));
   data?.mail?.forEach((m) => {
     const n = Math.max(0, -dayDiff(new Date(m.at), now));
+    if (accounts.size > 1 && m.account) m = { ...m, subject: `${m.account.split("@")[0]} · ${m.subject}` };
     if (m.waiting === "you") {
       const sev: 0 | 1 | 2 = n >= 7 ? 2 : n >= 2 ? 1 : 0;
       items.push({ key: "m" + m.id, area: "heart", title: `Reply to ${m.who}`, detail: m.subject, sev, when: n === 0 ? "today" : `${n}d waiting`, source: "Gmail", kind: "mail", url: m.url });

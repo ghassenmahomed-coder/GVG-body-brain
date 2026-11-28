@@ -12,5 +12,5 @@ export async function GET(req: Request) {
   const j = await r.json();
   if (!j.refresh_token) return page(`<h2>Niet gelukt</h2><p>${j.error_description || j.error || "Google gaf geen refresh token."}</p>`);
   const esc = String(j.refresh_token).replace(/[<>&"]/g, "");
-  return page(`<h2>Bijna klaar</h2><p>Kopieer deze sleutel en zet hem in Vercel als <b>GOOGLE_REFRESH_TOKEN</b> (Settings → Environment Variables), daarna Redeploy. Deel hem met niemand.</p><textarea readonly style="width:100%;height:120px;font:13px monospace">${esc}</textarea>`);
+  return page(`<h2>Bijna klaar</h2><p>Kopieer deze sleutel en zet hem in Vercel (Settings → Environment Variables), daarna Redeploy. Deel hem met niemand.</p><p>Eerste account (met de geld-sheet): <b>GOOGLE_REFRESH_TOKEN</b>.<br>Tweede account (alleen mail): <b>GOOGLE_REFRESH_TOKEN_2</b>.</p><textarea readonly style="width:100%;height:120px;font:13px monospace">${esc}</textarea>`);
 }
