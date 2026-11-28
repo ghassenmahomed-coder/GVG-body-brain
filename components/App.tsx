@@ -57,7 +57,9 @@ export default function App() {
   useEffect(() => {
     const v = () => { if (document.visibilityState === "visible") { loadToday(); } };
     document.addEventListener("visibilitychange", v);
-    return () => document.removeEventListener("visibilitychange", v);
+    // New mail, tasks and to-dos show up by themselves: refresh every minute while the app is open.
+    const t = setInterval(() => { if (document.visibilityState === "visible") loadToday(); }, 60_000);
+    return () => { document.removeEventListener("visibilitychange", v); clearInterval(t); };
   }, [loadToday]);
 
   const todayCheck = checkins.find((c) => c.date === isoDay(now)) ?? null;

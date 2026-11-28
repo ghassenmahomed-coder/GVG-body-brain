@@ -37,7 +37,7 @@ async function g<T = any>(url: string, rt = refreshTokens()[0]): Promise<T> { //
 }
 
 /* ---------- Gmail: who is waiting on you, and who you are waiting on ---------- */
-export type MailRow = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string; account: string };
+export type MailRow = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string; account: string; auto?: boolean; unread?: boolean };
 const header = (m: any, n: string): string => m.payload?.headers?.find((h: any) => h.name.toLowerCase() === n)?.value ?? ""; // eslint-disable-line @typescript-eslint/no-explicit-any
 const nameOf = (from: string) => (from.match(/^\s*"?([^"<]+?)"?\s*</)?.[1] || from.replace(/[<>]/g, "")).trim();
 // Mail sent by a system rather than a person: bulk/list headers, auto-replies, alert senders, ticket receipts.
@@ -65,11 +65,13 @@ async function mailFor(rt: string): Promise<MailRow[]> {
   const base = "https://gmail.googleapis.com/gmail/v1/users/me";
   const list = async (q: string, max: number) =>
     ((await g2<{ threads?: { id: string }[] }>(`${base}/threads?maxResults=${max}&q=${encodeURIComponent(q)}`)).threads ?? []).map((t) => t.id);
-  const [inbox, sent] = await Promise.all([
+  // recent: every inbox mail of the last 7 days (shown, calm if automated). inbox: people who may wait on you (30 days).
+  const [recent, inbox, sent] = await Promise.all([
+    list("in:inbox newer_than:7d -category:promotions -category:social -category:forums", 50),
     list("in:inbox category:primary newer_than:30d -from:me", 25),
     list("in:sent newer_than:30d", 25),
   ]);
-  const ids = [...new Set([...inbox, ...sent])];
+  const ids = [...new Set([...recent, ...inbox, ...sent])];
   const out: MailRow[] = [];
   await Promise.all(ids.map(async (id) => {
     const t = await g2<any>(`${base}/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=To&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence&metadataHeaders=X-Autoreply`); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -81,10 +83,11 @@ async function mailFor(rt: string): Promise<MailRow[]> {
     const fromMe = labels.includes("SENT") || from.toLowerCase().includes(me);
     const at = new Date(Number(last.internalDate)).toISOString();
     const subject = header(msgs[0], "subject") || "(no subject)";
-    // Automated mail (no-reply, newsletters, alerts, auto-replies) never waits on you.
-    if (!fromMe && isAutomated(last, from, subject)) return;
-    if (!fromMe && !inbox.includes(id)) return;
-    out.push({ id, subject, at, waiting: fromMe ? "them" : "you", who: nameOf(fromMe ? header(last, "to") : from), url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(me)}#all/${id}`, account: me });
+    // Automated mail (no-reply, newsletters, alerts, auto-replies) never waits on you: it is listed for 7 days, calm.
+    const auto = !fromMe && isAutomated(last, from, subject);
+    if (!fromMe && !recent.includes(id) && (auto || !inbox.includes(id))) return;
+    const unread = msgs.some((m: any) => (m.labelIds ?? []).includes("UNREAD")); // eslint-disable-line @typescript-eslint/no-explicit-any
+    out.push({ id, subject, at, waiting: fromMe ? "them" : "you", who: nameOf(fromMe ? header(last, "to") : from), url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(me)}#all/${id}`, account: me, auto, unread });
   }));
   return out;
 }

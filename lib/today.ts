@@ -9,7 +9,7 @@ export type ExpiryDTO = { id: string; url: string; document: string; expires: st
 export type PersonDTO = { id: string; url: string; name: string; kind: string; role: string; links: string[]; phone: string; email: string; status: string; followUp: string | null; notes: string };
 export type PageDTO = { id: string; name: string; area: AreaId; quietDays: number; lastEdited: string | null; url: string | null };
 export type TodoDTO = { id: string; text: string; due: string | null; pageId: string; page: string; area: AreaId; url: string; next?: boolean };
-export type MailDTO = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string; account?: string };
+export type MailDTO = { id: string; who: string; subject: string; at: string; waiting: "you" | "them"; url: string; account?: string; auto?: boolean; unread?: boolean };
 export type MoneyDTO = { id: string; title: string; detail: string; due: string | null; kind: "month" | "loan"; url: string };
 export type TodayDTO = { tasks: TaskDTO[]; expiry: ExpiryDTO[]; pages: PageDTO[]; todos?: TodoDTO[]; todosPartial?: boolean; people?: PersonDTO[]; mail?: MailDTO[]; money?: MoneyDTO[]; google?: boolean; googleAccounts?: number; errors: string[]; fetchedAt: string };
 
@@ -57,9 +57,12 @@ export function buildItems(data: TodayDTO | null, sets: GymSet[], stats: Record<
   data?.mail?.forEach((m) => {
     const n = Math.max(0, -dayDiff(new Date(m.at), now));
     if (accounts.size > 1 && m.account) m = { ...m, subject: `${m.account.split("@")[0]} · ${m.subject}` };
-    if (m.waiting === "you") {
+    if (m.waiting === "you" && m.auto) {
+      // Newsletters, alerts, receipts: listed under Heart for 7 days, never glowing.
+      items.push({ key: "m" + m.id, area: "heart", title: `${m.unread ? "● " : ""}Mail from ${m.who}`, detail: m.subject, sev: 0, when: n === 0 ? "today" : `${n}d ago`, sortDate: new Date(m.at).getTime(), source: "Gmail", kind: "mail", url: m.url });
+    } else if (m.waiting === "you") {
       const sev: 0 | 1 | 2 = n >= 7 ? 2 : n >= 2 ? 1 : 0;
-      items.push({ key: "m" + m.id, area: "heart", title: `Reply to ${m.who}`, detail: m.subject, sev, when: n === 0 ? "today" : `${n}d waiting`, source: "Gmail", kind: "mail", url: m.url });
+      items.push({ key: "m" + m.id, area: "heart", title: `${m.unread ? "● " : ""}Reply to ${m.who}`, detail: m.subject, sev, when: n === 0 ? "today" : `${n}d waiting`, source: "Gmail", kind: "mail", url: m.url });
     } else if (n >= 4) {
       items.push({ key: "m" + m.id, area: "heart", title: `No answer yet from ${m.who}`, detail: m.subject, sev: 1, when: `${n}d ago`, source: "Gmail", kind: "mail", url: m.url });
     }
