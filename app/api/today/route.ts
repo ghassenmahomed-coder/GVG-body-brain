@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { todoist } from "@/lib/todoist";
-import { listExpiry, openTodos, pageQuietness } from "@/lib/notion";
+import { activePeople, listExpiry, openTodos, pageQuietness } from "@/lib/notion";
 import { googleConfigured, mailFollowUps, moneyChecks, refreshTokens } from "@/lib/google";
 import { AREAS, AREA_ORDER, PROJECT_AREA, type AreaId } from "@/lib/config";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const errors: string[] = [];
   const google = googleConfigured();
-  const [tasksR, projectsR, expiryR, pagesR, todosR, mailR, moneyR] = await Promise.allSettled([todoist.tasks(), todoist.projects(), listExpiry(), pageQuietness(), openTodos(), google ? mailFollowUps() : Promise.resolve({ rows: [], errors: [] }), google ? moneyChecks() : Promise.resolve([])]);
+  const [tasksR, projectsR, expiryR, pagesR, todosR, peopleR, mailR, moneyR] = await Promise.allSettled([todoist.tasks(), todoist.projects(), listExpiry(), pageQuietness(), openTodos(), activePeople(), google ? mailFollowUps() : Promise.resolve({ rows: [], errors: [] }), google ? moneyChecks() : Promise.resolve([])]);
   const projects = projectsR.status === "fulfilled" ? projectsR.value : [];
   if (tasksR.status === "rejected") errors.push("Todoist: " + String(tasksR.reason?.message || tasksR.reason));
   if (expiryR.status === "rejected") errors.push("Notion Expiry Dates: " + String(expiryR.reason?.message || expiryR.reason));
@@ -17,6 +17,7 @@ export async function GET() {
   if (mailR.status === "rejected") errors.push("Gmail: " + String(mailR.reason?.message || mailR.reason));
   if (mailR.status === "fulfilled") errors.push(...mailR.value.errors);
   if (moneyR.status === "rejected") errors.push("Money sheet: " + String(moneyR.reason?.message || moneyR.reason));
+  if (peopleR.status === "rejected") errors.push("Notion People: " + String(peopleR.reason?.message || peopleR.reason));
   if (todosR.status === "rejected") errors.push("Notion to-dos: " + String(todosR.reason?.message || todosR.reason));
 
   const projName = new Map(projects.map((p) => [p.id, p.name]));
@@ -48,6 +49,7 @@ export async function GET() {
     expiry: expiryR.status === "fulfilled" ? expiryR.value : [],
     pages: pagesR.status === "fulfilled" ? pagesR.value : [],
     todos: todosR.status === "fulfilled" ? todosR.value.todos : [],
+    people: peopleR.status === "fulfilled" ? peopleR.value : [],
     mail: mailR.status === "fulfilled" ? mailR.value.rows : [],
     money: moneyR.status === "fulfilled" ? moneyR.value : [],
     google,

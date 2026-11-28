@@ -31,7 +31,7 @@ async function queryAll(dataSourceId: string, args: Record<string, unknown> = {}
 export type SetRow = { id: string; ts: number; muscle: string; exercise: string; weight: number; reps: number; pb: boolean; rir: number | null; helpers?: string[] };
 const multi = (p: any): string[] => (p?.multi_select ?? []).map((o: any) => o.name);
 const numOrNull = (p: any): number | null => (typeof p?.number === "number" ? p.number : null);
-export type ExpiryRow = { id: string; url: string; document: string; expires: string | null; type: string; person: string; car: string; notes: string };
+export type ExpiryRow = { id: string; url: string; document: string; expires: string | null; type: string; person: string; car: string; notes: string; status: string; waitingOn: string; edited: string };
 
 export async function listSets(sinceDays = 180): Promise<SetRow[]> {
   const since = new Date(Date.now() - sinceDays * 86400000).toISOString();
@@ -139,14 +139,117 @@ export async function listExpiry(): Promise<ExpiryRow[]> {
     person: sel(r.properties.Persoon),
     car: sel(r.properties.Auto),
     notes: text(r.properties.Notes),
+    status: sel(r.properties.Status),
+    waitingOn: text(r.properties["Wacht op"]),
+    edited: r.last_edited_time,
   }));
 }
 
-export async function updateExpiry(id: string, patch: { expires?: string | null; notes?: string }) {
+export const EXPIRY_STATUS = ["Te doen", "Bezig", "Wacht op", "Klaar"] as const;
+export const EXPIRY_TYPES = ["ID / passport", "Driver license", "Vehicle", "Insurance", "Keuring", "Work certificate", "Diploma", "Other"] as const;
+const rt = (s: string) => ({ rich_text: s ? [{ text: { content: s.slice(0, 1900) } }] : [] });
+
+export async function updateExpiry(id: string, patch: { expires?: string | null; notes?: string; status?: string; waitingOn?: string }) {
+  await assertParent(id, NOTION.expiryDates);
   const properties: any = {};
   if (patch.expires !== undefined) properties.Expires = { date: patch.expires ? { start: patch.expires } : null };
-  if (patch.notes !== undefined) properties.Notes = { rich_text: [{ text: { content: patch.notes.slice(0, 1900) } }] };
+  if (patch.notes !== undefined) properties.Notes = rt(patch.notes);
+  if (patch.status !== undefined) properties.Status = { select: patch.status ? { name: patch.status } : null };
+  if (patch.waitingOn !== undefined) properties["Wacht op"] = rt(patch.waitingOn);
   await notion().pages.update({ page_id: id, properties } as any);
+}
+
+export async function addExpiry(e: { document: string; type: string; person: string; expires: string | null; notes: string }) {
+  const properties: any = { Document: { title: [{ text: { content: e.document.slice(0, 200) } }] }, Notes: rt(e.notes), Status: { select: { name: "Te doen" } } };
+  if (e.type) properties.Type = { select: { name: e.type } };
+  if (e.person) properties.Persoon = { select: { name: e.person } };
+  if (e.expires) properties.Expires = { date: { start: e.expires } };
+  const page: any = await notion().pages.create({ parent: { type: "data_source_id", data_source_id: NOTION.expiryDates }, properties } as any);
+  return page.id as string;
+}
+
+/* ---------- People (Heart) ---------- */
+export type PersonRow = { id: string; url: string; name: string; kind: string; role: string; links: string[]; phone: string; email: string; status: string; followUp: string | null; notes: string };
+export const PEOPLE_STATUS = ["Nu mee bezig", "Follow-up", "Rustig"] as const;
+export const PEOPLE_LINKS = ["SuriRides", "Tru Tori", "Pulse", "Body Map", "Halliburton", "Familie", "Anders"] as const;
+
+const toPerson = (r: any): PersonRow => ({
+  id: r.id, url: r.url, name: text(r.properties.Naam), kind: sel(r.properties.Soort), role: text(r.properties.Rol),
+  links: (r.properties["Verbonden met"]?.multi_select ?? []).map((o: any) => o.name),
+  phone: r.properties.Telefoon?.phone_number ?? "", email: r.properties["E-mail"]?.email ?? "",
+  status: sel(r.properties.Status), followUp: date(r.properties["Volgende follow-up"]), notes: text(r.properties.Notities),
+});
+
+// Only people you are busy with or owe a follow-up: everyone else stays quiet.
+export async function activePeople(): Promise<PersonRow[]> {
+  const rows = await queryAll(NOTION.people, {
+    filter: { or: [
+      { property: "Status", select: { equals: "Nu mee bezig" } },
+      { property: "Status", select: { equals: "Follow-up" } },
+      { property: "Volgende follow-up", date: { is_not_empty: true } },
+    ] },
+  });
+  return rows.map(toPerson).filter((p) => p.status !== "Rustig" || p.followUp);
+}
+
+type PersonInput = Partial<Omit<PersonRow, "id" | "url">>;
+function personProps(p: PersonInput) {
+  const properties: any = {};
+  if (p.name !== undefined) properties.Naam = { title: [{ text: { content: p.name.slice(0, 200) } }] };
+  if (p.kind !== undefined) properties.Soort = { select: p.kind ? { name: p.kind } : null };
+  if (p.role !== undefined) properties.Rol = rt(p.role);
+  if (p.links !== undefined) properties["Verbonden met"] = { multi_select: p.links.filter((l) => (PEOPLE_LINKS as readonly string[]).includes(l)).map((name) => ({ name })) };
+  if (p.phone !== undefined) properties.Telefoon = { phone_number: p.phone || null };
+  if (p.email !== undefined) properties["E-mail"] = { email: p.email || null };
+  if (p.status !== undefined) properties.Status = { select: p.status ? { name: p.status } : null };
+  if (p.followUp !== undefined) properties["Volgende follow-up"] = { date: p.followUp ? { start: p.followUp } : null };
+  if (p.notes !== undefined) properties.Notities = rt(p.notes);
+  return properties;
+}
+
+export async function addPerson(p: PersonInput) {
+  const page: any = await notion().pages.create({ parent: { type: "data_source_id", data_source_id: NOTION.people }, properties: personProps(p) } as any);
+  return page.id as string;
+}
+
+export async function updatePerson(id: string, p: PersonInput) {
+  await assertParent(id, NOTION.people);
+  await notion().pages.update({ page_id: id, properties: personProps(p) } as any);
+}
+
+/* ---------- Brain, Eyes, Hands: write onto pages ---------- */
+const para = (s: string) => [{ type: "text", text: { content: s.slice(0, 1900) } }];
+const withDate = (s: string, due: string | null) => (due ? [...para(s + " "), { type: "mention", mention: { type: "date", date: { start: due } } }] : para(s));
+
+export async function addIdea(idea: string, note: string) {
+  const children: any[] = [{ type: "bulleted_list_item", bulleted_list_item: { rich_text: [{ type: "text", text: { content: idea.slice(0, 1900) }, annotations: { bold: true } }], children: note ? [{ type: "paragraph", paragraph: { rich_text: para(note) } }] : [] } }];
+  await notion().blocks.children.append({ block_id: NOTION.ideasPage, children } as any);
+}
+
+// A thing to watch or read is an open to-do on 03 Reference, so Eyes lights up until you tick it.
+export async function addToWatch(w: { title: string; link: string; kind: string; why: string }) {
+  const rich: any[] = [{ type: "text", text: { content: `${w.kind ? w.kind + ": " : ""}${w.title || w.link}`.slice(0, 1900), link: /^https?:\/\//.test(w.link) ? { url: w.link } : null } }];
+  if (w.why) rich.push({ type: "text", text: { content: ` · ${w.why}`.slice(0, 500) } });
+  await notion().blocks.children.append({ block_id: NOTION.referencePage, children: [{ type: "to_do", to_do: { rich_text: rich, checked: false } }] } as any);
+}
+
+// Project pages are the child pages of 02 Projects.
+export async function listProjects(): Promise<{ id: string; title: string }[]> {
+  const out: { id: string; title: string }[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < 5; i++) {
+    const res: any = await notion().blocks.children.list({ block_id: NOTION.projectsShelf, page_size: 100, start_cursor: cursor });
+    for (const b of res.results) if (b.type === "child_page") out.push({ id: b.id, title: b.child_page.title });
+    if (!res.has_more) break;
+    cursor = res.next_cursor;
+  }
+  return out;
+}
+
+export async function addProjectStep(projectId: string, step: string, due: string | null) {
+  const ok = (await listProjects()).some((p) => p.id.replace(/-/g, "") === projectId.replace(/-/g, ""));
+  if (!ok) throw new Error("That is not a page under 02 Projects.");
+  await notion().blocks.children.append({ block_id: projectId, children: [{ type: "to_do", to_do: { rich_text: withDate(step, due), checked: false } }] } as any);
 }
 
 export async function pageQuietness() {
