@@ -30,6 +30,11 @@ export const NOTION = {
   progressPhotos: "42387417-e3fa-81bf-84fc-000bfe9a30d1",
   checkins: "42487417-e3fa-813a-be48-000b9e2ee65d",
   expiryDates: "41b87417-e3fa-8189-bce3-000b645fbcd6",
+  people: "42687417-e3fa-8101-9f96-000bea48b554",
+  // Where the per-body-part Add buttons write.
+  ideasPage: "41b87417e3fa819aa673ebbd2296883f",
+  referencePage: "41b87417e3fa816ba5f5dccf9a856c8d",
+  projectsShelf: "41b87417e3fa8108b49aee30904d38f5",
   // GVG Brain root and its shelves. Open to-dos anywhere under a shelf light up that shelf's body part.
   root: "41b87417e3fa81089cf0e24dbdd86b60",
   shelves: {

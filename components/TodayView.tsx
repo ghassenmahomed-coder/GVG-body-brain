@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { AREAS, AREA_ORDER, type AreaId } from "@/lib/config";
-import { areaSeverity, type Item, type TaskDTO, type ExpiryDTO, type TodoDTO } from "@/lib/today";
+import { areaSeverity, type Item, type TaskDTO, type ExpiryDTO, type TodoDTO, type PersonDTO } from "@/lib/today";
+import { AddSheet, Pick, PersonFields } from "./AddSheet";
 import { HomeBody3D } from "./Body3D";
 import { sound } from "@/lib/sound";
 import { Sheet, api, json, type ToastMsg } from "./ui";
@@ -91,6 +92,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
       )}
       {open?.task && <TaskSheet task={open.task} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {open?.expiry && <ExpirySheet doc={open.expiry} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
+      {open?.person && <PersonSheet person={open.person} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {open?.todo && <TodoSheet todo={open.todo} onClose={() => setOpen(null)} reload={reload} toast={toast} />}
       {(open?.kind === "page" || open?.kind === "mail" || open?.kind === "money") && (
         <Sheet title={open.title} eyebrow={AREAS[open.area].name} onClose={() => setOpen(null)}>
@@ -98,7 +100,7 @@ export default function TodayView({ items, loading, onGym, reload, toast, gymDay
           {open.url && <a className="btn primary" href={open.url} target="_blank" rel="noopener noreferrer">Open in {open.source === "Gmail" ? "Gmail" : open.source === "Sheets" ? "the sheet" : "Notion"}</a>}
         </Sheet>
       )}
-      {adding && <AddSheet initial={adding} onClose={() => setAdding(null)} reload={reload} toast={toast} />}
+      {adding && <AddSheet initial={adding} onGym={onGym} onClose={() => setAdding(null)} reload={reload} toast={toast} />}
     </section>
   );
 }
@@ -131,32 +133,6 @@ function AreaPick({ value, onChange }: { value: AreaId; onChange: (a: AreaId) =>
     <div className="areapick" role="group" aria-label="Body part">
       {AREA_ORDER.map((a) => <button type="button" key={a} aria-pressed={value === a} onClick={() => onChange(a)}>{AREAS[a].name}</button>)}
     </div>
-  );
-}
-
-function AddSheet({ initial, onClose, reload, toast }: { initial: AreaId; onClose: () => void; reload: () => Promise<void>; toast: (t: ToastMsg) => void }) {
-  const [content, setContent] = useState("");
-  const [due, setDue] = useState("");
-  const [area, setArea] = useState<AreaId>(initial);
-  const [desc, setDesc] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function save(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true);
-    try {
-      await api("/api/tasks", json("POST", { content, due, area, description: desc }));
-      toast({ text: "Added to Todoist" }); onClose(); reload();
-    } catch (err) { toast({ text: (err as Error).message, kind: "bad" }); setBusy(false); }
-  }
-  return (
-    <Sheet title="Add a task" eyebrow="Goes to Todoist" onClose={onClose}>
-      <form className="form" onSubmit={save}>
-        <div className="field"><label htmlFor="nt">What</label><input id="nt" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Follow up with Claire about Clark Accord" autoFocus /></div>
-        <div className="field"><label htmlFor="nd">When (plain words work)</label><input id="nd" value={due} onChange={(e) => setDue(e.target.value)} placeholder="friday 5pm, tomorrow, every monday" /></div>
-        <div className="field"><label>Body part</label><AreaPick value={area} onChange={setArea} /></div>
-        <div className="field"><label htmlFor="nn">Notes</label><textarea id="nn" value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
-        <button className="btn primary big" disabled={busy || !content.trim()}>{busy ? "Adding…" : "Add task"}</button>
-      </form>
-    </Sheet>
   );
 }
 
@@ -210,14 +186,18 @@ function TaskSheet({ task, onClose, reload, toast }: { task: TaskDTO; onClose: (
   );
 }
 
+const DOC_STATUS = ["Te doen", "Bezig", "Wacht op", "Klaar"] as const;
+
 function ExpirySheet({ doc, onClose, reload, toast }: { doc: ExpiryDTO; onClose: () => void; reload: () => Promise<void>; toast: (t: ToastMsg) => void }) {
   const [date, setDate] = useState(doc.expires || "");
   const [notes, setNotes] = useState(doc.notes);
+  const [status, setStatus] = useState<(typeof DOC_STATUS)[number] | "">((doc.status as (typeof DOC_STATUS)[number]) || "");
+  const [waitingOn, setWaitingOn] = useState(doc.waitingOn || "");
   const [busy, setBusy] = useState<"" | "save" | "photo">("");
   async function save() {
     setBusy("save");
     try {
-      await api(`/api/expiry/${doc.id}`, json("PATCH", { expires: date || null, notes }));
+      await api(`/api/expiry/${doc.id}`, json("PATCH", { expires: date || null, notes, status, waitingOn }));
       toast({ text: "Updated in Notion" }); onClose(); reload();
     } catch (e) { toast({ text: (e as Error).message, kind: "bad" }); setBusy(""); }
   }
@@ -233,13 +213,42 @@ function ExpirySheet({ doc, onClose, reload, toast }: { doc: ExpiryDTO; onClose:
   return (
     <Sheet title={doc.document} eyebrow={["Expiry Dates", doc.type, doc.person || doc.car].filter(Boolean).join(" · ")} onClose={onClose}>
       <div className="form">
-        <p className="note" style={{ margin: 0 }}>Renewed it? Set the new expiry date. The glow goes away once it&apos;s more than 30 days out.</p>
+        <p className="note" style={{ margin: 0 }}>Renewed it? Set the new expiry date. Waiting on it? Set the status to Wacht op and Feet calms down.</p>
+        <div className="field"><label>Status</label><Pick label="Status" options={DOC_STATUS} value={status} onChange={setStatus} /></div>
+        {status === "Wacht op" && <div className="field"><label htmlFor="xw">Waar wacht je op</label><input id="xw" value={waitingOn} onChange={(e) => setWaitingOn(e.target.value)} placeholder="Nieuw rijbewijs van CBB" /></div>}
         <div className="field"><label htmlFor="xd">Expires</label><input id="xd" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
         <div className="field"><label htmlFor="xn">Notes</label><textarea id="xn" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
         <div className="actions">
           <button className="btn primary" onClick={save} disabled={!!busy}>{busy === "save" ? "Saving…" : "Save to Notion"}</button>
           <PhotoButton onPhoto={photo} busy={busy === "photo"} label="Add photo of the document" />
           <a className="btn" href={doc.url} target="_blank" rel="noopener noreferrer">Open in Notion</a>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/* Heart: someone from Notion People. Call, mail, or change their status and follow-up date. */
+function PersonSheet({ person, onClose, reload, toast }: { person: PersonDTO; onClose: () => void; reload: () => Promise<void>; toast: (t: ToastMsg) => void }) {
+  const [p, setP] = useState<Partial<PersonDTO>>(person);
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try { await api(`/api/people/${person.id}`, json("PATCH", p)); toast({ text: "Updated in Notion" }); onClose(); reload(); }
+    catch (e) { toast({ text: (e as Error).message, kind: "bad" }); setBusy(false); }
+  }
+  return (
+    <Sheet title={person.name} eyebrow={["People", person.role].filter(Boolean).join(" · ")} onClose={onClose}>
+      <div className="actions" style={{ marginBottom: 14 }}>
+        {person.phone && <a className="btn" href={`tel:${person.phone.replace(/[^+\d]/g, "")}`}>Bellen</a>}
+        {person.phone && <a className="btn" href={`https://wa.me/${person.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+        {person.email && <a className="btn" href={`mailto:${person.email}`}>Mailen</a>}
+      </div>
+      <div className="form">
+        <PersonFields p={p} set={(x) => setP({ ...p, ...x })} />
+        <div className="actions">
+          <button className="btn primary" onClick={save} disabled={busy || !p.name?.trim()}>{busy ? "Saving…" : "Save to Notion"}</button>
+          <a className="btn" href={person.url} target="_blank" rel="noopener noreferrer">Open in Notion</a>
         </div>
       </div>
     </Sheet>
